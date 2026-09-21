@@ -1,0 +1,36 @@
+﻿================================================================================
+ozet_df
+================================================================================
+
+Tarih: İlgili hisse senedi verilerinin ait olduğu işlem gününün tarihi (BIST_eda.py dosyasında 'GG.AA.YYYY' formatına dönüştürülerek tablo indeksi haline getirilmektedir).
+
+Hisse: Borsa İstanbul BIST 100 endeksi kapsamında işlem gören şirkete ait hisse senedi kodu / borsa sembolü (örneğin THYAO, GARAN, ASELS).
+
+Acilis: İlgili işlem gününde hisse senedinde seansın başlamasıyla gerçekleşen ilk işlem fiyatı (Türk Lirası cinsinden).
+
+Kapanis: İlgili işlem gününde seans kapanışı veya kapanış seansı sonucunda oluşan son işlem fiyatı (Türk Lirası cinsinden).
+
+Yuksek: İlgili işlem günü boyunca hisse senedinin ulaştığı en yüksek işlem fiyatı (Türk Lirası cinsinden gün içi zirve seviyesi).
+
+Dusuk: İlgili işlem günü boyunca hisse senedinin gördüğü en düşük işlem fiyatı (Türk Lirası cinsinden gün içi dip seviyesi).
+
+Hacim: İlgili işlem gününde gerçekleşen alım-satım işlemlerinde el değiştiren toplam hisse senedi adedi (lot / pay adedi cinsinden işlem hacmi).
+
+Degisim_%: İlgili işlem gününde hisse senedinin açılış fiyatına kıyasla kapanış fiyatındaki gün içi yüzdesel değişim / getiri oranı (Formül: ((Kapanış - Açılış) / Açılış) * 100). Pozitif değerler değer artışını, negatif değerler değer kaybını ifade eder.
+
+
+================================================================================
+endeks_df
+================================================================================
+
+Date (Tarih): BIST 100 (XU100.IS) endeks verilerinin ait olduğu işlem gününü belirten zaman serisi indeksi (Datetime formatında).
+
+Open (Açılış): BIST 100 endeksinin ilgili işlem gününde piyasa açılışıyla birlikte işlem görmeye başladığı ilk endeks puanı / seviyesi.
+
+High (Yüksek): BIST 100 endeksinin ilgili işlem günü boyunca ulaştığı en yüksek endeks puanı (gün içi zirve seviyesi).
+
+Low (Düşük): BIST 100 endeksinin ilgili işlem günü boyunca gördüğü en düşük endeks puanı (gün içi dip seviyesi).
+
+Close (Kapanış): BIST 100 endeksinin seans sonu / gün kapanışı itibarıyla ulaştığı resmi kapanış puanı / seviyesi.
+
+Volume (Hacim): BIST 100 endeksi kapsamındaki tüm hisse senetlerinde ilgili işlem gününde gerçekleşen toplam işlem adedi / el değiştiren pay miktarı (lot adedi).
