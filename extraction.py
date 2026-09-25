@@ -29,7 +29,47 @@ BIST100_TICKERS: List[str] = [
     "VESTL", "YEOTK", "YKBNK", "YYLGD", "ZOREN",
 ]
 
+# ---------------------------------------------------------------------------
+# BIST 30 hisse kodları (En yüksek likidite ve piyasa değerli hisseler)
+# ---------------------------------------------------------------------------
+BIST30_TICKERS: List[str] = [
+    "AKBNK", "ALARK", "ARCLK", "ASELS", "ASTOR", "BIMAS", "BRSAN", "EKGYO",
+    "ENKAI", "EREGL", "FROTO", "GARAN", "GUBRF", "HEKTS", "ISCTR", "KCHOL",
+    "KONTR", "KOZAL", "KRDMD", "OYAKC", "PETKM", "PGSUS", "SAHOL", "SASA",
+    "SISE", "TCELL", "THYAO", "TOASO", "TUPRS", "YKBNK"
+]
+
+# ---------------------------------------------------------------------------
+# BIST Likit 40 hisse kodları (BIST 30 + En Yüksek Hacimli 10 Sanayi/Banka Hissesi)
+# Sığ ve manipülatif yan tahtaları eleyen kurumsal yatırım evreni
+# ---------------------------------------------------------------------------
+BIST_LIQUID_40: List[str] = list(dict.fromkeys(BIST30_TICKERS + [
+    "DOHOL", "TSKB", "SOKM", "MGROS", "VESTL", "CIMSA", "OTKAR", "TAVHL", "TTKOM", "ULKER"
+]))
+
 INDEX_TICKER: str = "XU100.IS"  # BIST 100 endeksinin kendisi
+
+# BIST Sektör Endeksleri (Bankacılık ve Sınai)
+SECTOR_TICKERS = {
+    "XBANK": "XBANK.IS",  # BIST Banka Endeksi
+    "XUSIN": "XUSIN.IS"   # BIST Sınai Endeksi
+}
+
+# Hisselerin Sektörel Sınıflandırması (Bankacılık, Sınai, Diğer)
+TICKER_SECTOR_MAP = {
+    # Bankacılık
+    "AKBNK": "BANK", "GARAN": "BANK", "ISCTR": "BANK", "YKBNK": "BANK",
+    "HALKB": "BANK", "VAKBN": "BANK", "TSKB": "BANK", "SKBNK": "BANK",
+    # Sınai & İmalat & Savunma & Enerji
+    "EREGL": "INDUS", "FROTO": "INDUS", "TOASO": "INDUS", "TUPRS": "INDUS",
+    "PETKM": "INDUS", "ASELS": "INDUS", "ARCLK": "INDUS", "SASA": "INDUS",
+    "SISE": "INDUS", "TTRAK": "INDUS", "CIMSA": "INDUS", "OTKAR": "INDUS",
+    "ULKER": "INDUS", "VESTL": "INDUS", "BRSAN": "INDUS", "BRYAT": "INDUS",
+    "BTCIM": "INDUS", "BUCIM": "INDUS", "CCOLA": "INDUS", "EGEEN": "INDUS",
+    "KCAER": "INDUS", "KORDS": "INDUS", "KRDMD": "INDUS", "OYAKC": "INDUS",
+    "VESBE": "INDUS", "ASTOR": "INDUS", "CWENE": "INDUS", "EUPWR": "INDUS",
+    "GESAN": "INDUS", "KONTR": "INDUS", "SMRTG": "INDUS", "YEOTK": "INDUS"
+}
 
 # Dalga-1 ve Dalga-2 Makro Varlıklar (yfinance üzerinden sıfır maliyetli ve güvenilir)
 MACRO_TICKERS = {
@@ -176,6 +216,17 @@ def makro_verileri_cek(period: str = "20y") -> pd.DataFrame:
     print(f"Makro veriler çekiliyor: {list(MACRO_TICKERS.keys())} (period={period})...")
     df_macro = yf.download(tickers, period=period, interval="1d", group_by="ticker", auto_adjust=False, progress=False)
     return df_macro
+
+
+def sektor_verilerini_cek(period: str = "10y") -> pd.DataFrame:
+    """
+    BIST Banka (XBANK.IS) ve BIST Sınai (XUSIN.IS) sektör endekslerini yfinance üzerinden çeker.
+    """
+    tickers = list(SECTOR_TICKERS.values())
+    print(f"Sektör endeksleri çekiliyor: {list(SECTOR_TICKERS.keys())} (period={period})...")
+    df_sec = yf.download(tickers, period=period, interval="1d", group_by="ticker", auto_adjust=False, progress=False)
+    return df_sec
+
 
 
 if __name__ == "__main__":

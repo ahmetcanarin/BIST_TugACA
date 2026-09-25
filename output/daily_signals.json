@@ -1,0 +1,170 @@
+{
+  "report_date": "2026-09-25",
+  "champion_model": "GRU_Ranker",
+  "calibrated_threshold": "%-0.10",
+  "top10_avg_expected_alpha": "%0.3",
+  "portfolio_action": "DEFANSİF MOD / 100% PPF REPO NAKİT (Tier 1 Makro Kapısı: XU100 < SMA50)",
+  "is_cash_recommended": true,
+  "macro_regime_bull": false,
+  "top_longs": [
+    {
+      "ticker": "DOHOL",
+      "model_score": 0.421,
+      "expected_excess_return": "%0.39",
+      "confidence": "%54.5",
+      "action": "GÜÇLÜ AL (Yüksek Alfa)",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0,
+      "recommended_weight": "%25.3",
+      "dynamic_stop_loss": "-%6.3",
+      "liquidity_tier": "Likit 40 (20 bps)"
+    },
+    {
+      "ticker": "ASTOR",
+      "model_score": 0.41,
+      "expected_excess_return": "%0.33",
+      "confidence": "%50.9",
+      "action": "GÜÇLÜ AL (Yüksek Alfa)",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0,
+      "recommended_weight": "%13.2",
+      "dynamic_stop_loss": "-%7.0",
+      "liquidity_tier": "BIST 30 (10 bps)"
+    },
+    {
+      "ticker": "YKBNK",
+      "model_score": 0.399,
+      "expected_excess_return": "%0.3",
+      "confidence": "%51.3",
+      "action": "GÜÇLÜ AL (Yüksek Alfa)",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0,
+      "recommended_weight": "%17.8",
+      "dynamic_stop_loss": "-%7.0",
+      "liquidity_tier": "BIST 30 (10 bps)"
+    },
+    {
+      "ticker": "PGSUS",
+      "model_score": 0.388,
+      "expected_excess_return": "%0.3",
+      "confidence": "%52.8",
+      "action": "GÜÇLÜ AL (Yüksek Alfa)",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0,
+      "recommended_weight": "%24.3",
+      "dynamic_stop_loss": "-%6.8",
+      "liquidity_tier": "BIST 30 (10 bps)"
+    },
+    {
+      "ticker": "TUPRS",
+      "model_score": 0.376,
+      "expected_excess_return": "%0.3",
+      "confidence": "%53.1",
+      "action": "GÜÇLÜ AL (Yüksek Alfa)",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0,
+      "recommended_weight": "%19.4",
+      "dynamic_stop_loss": "-%7.0",
+      "liquidity_tier": "BIST 30 (10 bps)"
+    }
+  ],
+  "bottom_shorts": [
+    {
+      "ticker": "SISE",
+      "model_score": -0.309,
+      "expected_excess_return": "%0.12",
+      "confidence": "%49.6",
+      "action": "YÜKSEK RİSK / ENDEKS ALTI",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0
+    },
+    {
+      "ticker": "MGROS",
+      "model_score": -0.354,
+      "expected_excess_return": "%0.1",
+      "confidence": "%50.7",
+      "action": "YÜKSEK RİSK / ENDEKS ALTI",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0
+    },
+    {
+      "ticker": "VESTL",
+      "model_score": -0.399,
+      "expected_excess_return": "%0.08",
+      "confidence": "%50.3",
+      "action": "YÜKSEK RİSK / ENDEKS ALTI",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0
+    },
+    {
+      "ticker": "TOASO",
+      "model_score": -0.421,
+      "expected_excess_return": "%0.07",
+      "confidence": "%49.4",
+      "action": "YÜKSEK RİSK / ENDEKS ALTI",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0
+    },
+    {
+      "ticker": "PETKM",
+      "model_score": -0.444,
+      "expected_excess_return": "%0.05",
+      "confidence": "%52.1",
+      "action": "YÜKSEK RİSK / ENDEKS ALTI",
+      "latest_news": "Son günlerde özel durum açıklaması yok.",
+      "news_sentiment": 0.0
+    }
+  ],
+  "gatekeeper_vetoed": [],
+  "champion_backtest_performance": {
+    "champion_model": "GRU_Ranker",
+    "trading_days": 665,
+    "portfolio_cagr_pct": 11.44,
+    "benchmark_cagr_pct": 22.97,
+    "net_alpha_cagr_pct": -11.53,
+    "sharpe_ratio": -1.77,
+    "max_drawdown_pct": -12.29,
+    "win_rate_vs_benchmark_pct": 42.11,
+    "test_spearman_ic": 0.008
+  },
+  "promotion_gatekeeper_decision": {
+    "status": "PROMOTED",
+    "active_model": "GRU_Ranker (10Y Haftalık Momentum)",
+    "reason": "Yeni model mevcut şampiyonu geçti (Alfa: %-39.49 > %-46.75)"
+  },
+  "rnn_lstm_gru_benchmark_leaderboard": [
+    {
+      "rank": 1,
+      "model_name": "GRU_Ranker",
+      "net_alpha_pct": -39.49,
+      "net_return_pct": 33.07,
+      "benchmark_return_pct": 72.56,
+      "sharpe_ratio": -1.77,
+      "max_drawdown_pct": -12.29,
+      "test_ic": 0.008,
+      "win_rate_pct": 42.11
+    },
+    {
+      "rank": 2,
+      "model_name": "RNN_Ranker",
+      "net_alpha_pct": -50.72,
+      "net_return_pct": 21.84,
+      "benchmark_return_pct": 72.56,
+      "sharpe_ratio": -2.27,
+      "max_drawdown_pct": -11.3,
+      "test_ic": -0.054,
+      "win_rate_pct": 43.61
+    },
+    {
+      "rank": 3,
+      "model_name": "LSTM_Ranker",
+      "net_alpha_pct": -75.48,
+      "net_return_pct": -2.92,
+      "benchmark_return_pct": 72.56,
+      "sharpe_ratio": -2.75,
+      "max_drawdown_pct": -18.26,
+      "test_ic": -0.057,
+      "win_rate_pct": 40.6
+    }
+  ]
+}

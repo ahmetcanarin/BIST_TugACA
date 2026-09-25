@@ -140,7 +140,7 @@ def run_optuna_tuning(n_trials: int = 15, period: str = "10y") -> Dict[str, Any]
     print("=" * 80)
 
     # 1. Ham veriyi çek ve özellikleri hazırla
-    print("\n[1/3] Canlı veri ve 29 özellik hazırlanıyor...")
+    print("\n[1/3] Canlı veri ve 26 özellik hazırlanıyor...")
     df_index = endeks_verisini_cek(period=period)
     df_macro = makro_verileri_cek(period=period)
     df_raw = tum_hisseleri_cek(period=period)
@@ -155,8 +155,7 @@ def run_optuna_tuning(n_trials: int = 15, period: str = "10y") -> Dict[str, Any]
         "USDTRY_Return", "USDTRY_Vol_20", "VIX_Level", "VIX_Change",
         "Brent_Return", "Gold_Return", "Beta_FX_60d", "Beta_Market_60d",
         "TCMB_Policy_Rate", "TCMB_Rate_Change", "TCMB_Days_Since_Decision",
-        "CDS_Proxy_Chg5", "CDS_Proxy_ZScore_60d", "Beta_CDS_60d",
-        "KAP_Sentiment", "KAP_News_Count", "KAP_Sentiment_Shock_3d"
+        "CDS_Proxy_Chg5", "CDS_Proxy_ZScore_60d", "Beta_CDS_60d"
     ]
 
     train_df, val_df, test_df = split_by_date(df_features, train_end="2021-12-31", val_end="2023-12-31")

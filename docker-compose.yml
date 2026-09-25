@@ -1,0 +1,54 @@
+services:
+  fastapi_bist:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dlai_bist_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - API_KEY=bist_quant_secret_2026
+      - REQUIRE_API_KEY=true
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./models:/app/models
+      - ./output:/app/output
+      - ./data:/app/data
+    networks:
+      - dlai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  n8n_agent:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: dlai_bist_n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Europe/Istanbul
+      - TZ=Europe/Istanbul
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - dlai-network
+    depends_on:
+      fastapi_bist:
+        condition: service_healthy
+
+networks:
+  dlai-network:
+    name: dlai-network
+    driver: bridge
+
+volumes:
+  n8n_data:

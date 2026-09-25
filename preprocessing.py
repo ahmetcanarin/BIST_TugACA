@@ -18,7 +18,14 @@ from typing import List, Tuple, Dict, Any, Optional
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import RobustScaler
-from extraction import tum_hisseleri_cek, endeks_verisini_cek, makro_verileri_cek
+from extraction import (
+    tum_hisseleri_cek,
+    endeks_verisini_cek,
+    makro_verileri_cek,
+    sektor_verilerini_cek,
+    TICKER_SECTOR_MAP,
+    BIST_LIQUID_40
+)
 from extraction_tcmb import get_tcmb_interest_rate_series, compute_tcmb_features
 
 pd.set_option("display.max_columns", None)
@@ -76,22 +83,30 @@ def _compute_rsi(series: pd.Series, window: int = 14) -> pd.Series:
 def process_index_data(df_index: pd.DataFrame) -> pd.DataFrame:
     """
     XU100.IS verisinden Date, Index_Log_Return, Index_Volatility_20 ve Target_Index_Return üretir.
+    Hedef Getiri: Ertesi günkü seans içi getiri (T+1 Açılış -> T+1 Kapanış).
     """
     if df_index is None or df_index.empty:
         return pd.DataFrame(columns=["Date", "Index_Log_Return", "Index_Volatility_20", "Target_Index_Return"])
 
     idx = df_index.copy()
-    if isinstance(idx.columns, pd.MultiIndex):
-        if "Close" in idx.columns.levels[0]:
-            close_s = idx["Close"].iloc[:, 0] if isinstance(idx["Close"], pd.DataFrame) else idx["Close"]
-        elif "Close" in idx.columns.names or any(c == "Close" for c in idx.columns.get_level_values(1)):
-            close_s = idx.xs("Close", axis=1, level=1).iloc[:, 0]
-        else:
-            close_s = idx.iloc[:, 0]
-    elif "Close" in idx.columns:
-        close_s = idx["Close"]
-    else:
-        close_s = idx.iloc[:, 0]
+
+    def _extract_col(col_name: str) -> pd.Series:
+        if isinstance(idx.columns, pd.MultiIndex):
+            if col_name in idx.columns.levels[0]:
+                sub = idx[col_name]
+                return sub.iloc[:, 0] if isinstance(sub, pd.DataFrame) else sub
+            elif col_name in idx.columns.names or any(c == col_name for c in idx.columns.get_level_values(1)):
+                sub = idx.xs(col_name, axis=1, level=1)
+                return sub.iloc[:, 0] if isinstance(sub, pd.DataFrame) else sub
+            else:
+                return idx.iloc[:, 0]
+        elif col_name in idx.columns:
+            sub = idx[col_name]
+            return sub.iloc[:, 0] if isinstance(sub, pd.DataFrame) else sub
+        return idx.iloc[:, 0]
+
+    close_s = _extract_col("Close")
+    open_s = _extract_col("Open")
 
     date_idx = pd.to_datetime(idx.index)
     if date_idx.tz is not None:
@@ -99,15 +114,33 @@ def process_index_data(df_index: pd.DataFrame) -> pd.DataFrame:
 
     idx_df = pd.DataFrame({
         "Date": date_idx,
-        "Index_Close": pd.to_numeric(close_s.values.flatten() if hasattr(close_s, "values") else close_s, errors="coerce")
-    }).dropna(subset=["Index_Close"]).sort_values("Date").reset_index(drop=True)
+        "Index_Close": pd.to_numeric(close_s.values.flatten() if hasattr(close_s, "values") else close_s, errors="coerce"),
+        "Index_Open": pd.to_numeric(open_s.values.flatten() if hasattr(open_s, "values") else open_s, errors="coerce")
+    }).dropna(subset=["Index_Close", "Index_Open"]).sort_values("Date").reset_index(drop=True)
 
     idx_df["Index_Log_Return"] = np.log(idx_df["Index_Close"] / idx_df["Index_Close"].shift(1))
     idx_df["Index_Volatility_20"] = idx_df["Index_Log_Return"].rolling(window=20).std()
 
-    # Endeksin bir sonraki günkü yüzde getirisi (Hisse bazında Target_Excess_Return için)
+    # 1. Katman Makro Rejim Göstergeleri: XU100 > SMA50 ve SMA200
+    idx_df["Index_SMA50"] = idx_df["Index_Close"].rolling(window=50, min_periods=20).mean()
+    idx_df["Index_SMA200"] = idx_df["Index_Close"].rolling(window=200, min_periods=50).mean()
+    idx_df["Market_Trend_SMA50"] = (idx_df["Index_Close"] > idx_df["Index_SMA50"]).astype(float)
+    idx_df["Market_Trend_SMA200"] = (idx_df["Index_Close"] > idx_df["Index_SMA200"]).astype(float)
+
+    # 5 Günlük ve 1 Günlük Endeks İleri Getirileri
+    next_5d_close = idx_df["Index_Close"].shift(-5)
+    valid_5d = (next_5d_close > 0) & next_5d_close.notna()
+    raw_5d_target = ((next_5d_close - idx_df["Index_Close"]) / idx_df["Index_Close"]) * 100.0
+    idx_df["Target_Index_Return_5d"] = raw_5d_target.where(valid_5d, np.nan)
+
+    next_idx_open = idx_df["Index_Open"].shift(-1)
     next_idx_close = idx_df["Index_Close"].shift(-1)
-    idx_df["Target_Index_Return"] = ((next_idx_close - idx_df["Index_Close"]) / idx_df["Index_Close"]) * 100.0
+    valid_idx = (next_idx_open > 0) & next_idx_open.notna() & next_idx_close.notna()
+    raw_idx_target = ((next_idx_close - next_idx_open) / next_idx_open) * 100.0
+    idx_df["Target_Index_Return_1d"] = raw_idx_target.where(valid_idx, np.nan)
+
+    # Standart hedef olarak 5 günlük endeks getirisini kullan
+    idx_df["Target_Index_Return"] = idx_df["Target_Index_Return_5d"]
     return idx_df
 
 
@@ -188,29 +221,66 @@ def process_macro_data(df_macro: Optional[pd.DataFrame] = None) -> pd.DataFrame:
     return macro_df.sort_values("Date").reset_index(drop=True)
 
 
+def process_sector_data(df_sec: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+    """
+    yfinance'ten gelen BIST Banka (XBANK.IS) ve BIST Sınai (XUSIN.IS) verilerini
+    Date bazlı temiz sütunlara ve relatif getiri/momentum göstergelerine dönüştürür.
+    """
+    cols = ["Date", "Bank_Log_Return", "Indus_Log_Return", "Bank_Mom10", "Indus_Mom10"]
+    if df_sec is None or df_sec.empty:
+        return pd.DataFrame(columns=cols)
+
+    s = df_sec.copy()
+    date_idx = pd.to_datetime(s.index)
+    if date_idx.tz is not None:
+        date_idx = date_idx.tz_localize(None)
+
+    sec_df = pd.DataFrame({"Date": date_idx})
+
+    def _extract_close(ticker_str: str) -> pd.Series:
+        if isinstance(s.columns, pd.MultiIndex):
+            if ticker_str in s.columns.levels[0]:
+                sub = s[ticker_str]
+                c = sub["Close"] if "Close" in sub.columns else sub.iloc[:, 0]
+                return pd.to_numeric(c, errors="coerce")
+            elif "Close" in s.columns.levels[0] and ticker_str in s["Close"].columns:
+                return pd.to_numeric(s["Close"][ticker_str], errors="coerce")
+        elif ticker_str in s.columns:
+            return pd.to_numeric(s[ticker_str], errors="coerce")
+        return pd.Series(np.nan, index=s.index)
+
+    bank_close = _extract_close("XBANK.IS").ffill().bfill().fillna(1.0)
+    indus_close = _extract_close("XUSIN.IS").ffill().bfill().fillna(1.0)
+
+    bank_ret = np.log(bank_close / bank_close.shift(1)).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    indus_ret = np.log(indus_close / indus_close.shift(1)).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+    sec_df["Bank_Log_Return"] = bank_ret.values
+    sec_df["Indus_Log_Return"] = indus_ret.values
+
+    bank_m10 = (bank_close / bank_close.shift(10) - 1.0).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    indus_m10 = (indus_close / indus_close.shift(10) - 1.0).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+    sec_df["Bank_Mom10"] = bank_m10.values
+    sec_df["Indus_Mom10"] = indus_m10.values
+
+    return sec_df.sort_values("Date").reset_index(drop=True)
+
+
 def add_technical_features(
     df_panel: pd.DataFrame,
     df_index: Optional[pd.DataFrame] = None,
-    df_macro: Optional[pd.DataFrame] = None
+    df_macro: Optional[pd.DataFrame] = None,
+    df_sector: Optional[pd.DataFrame] = None
 ) -> pd.DataFrame:
     """
-    Ham fiyatlar yerine durağan teknik ve makro göstergeleri türetir:
-    
-    12 Klasik Özellik:
-    - Log_Return, HL_Spread, CO_Return, Log_Volume, Volume_Change,
-      SMA10_Ratio, SMA30_Ratio, Volatility_20, RSI_Norm,
-      Index_Log_Return, Excess_Return, Cross_Rank_Return
-      
-    8 Dalga-1 Makro Özellik:
-    - USDTRY_Return, USDTRY_Vol_20, VIX_Level, VIX_Change,
-      Brent_Return, Gold_Return, Beta_FX_60d, Beta_Market_60d
-
-    Hedef Değişkenler (Target):
-    - Target_Return: Bir sonraki günün yüzde getirisi (Ham getiri)
-    - Target_Excess_Return: Endeks üstü getiri (Alfa)
-    - Target_Direction: Ham yükseliş (1 / 0)
-    - Target_Direction_Alpha: Endeksi yenme (1 / 0)
-    - Target_Rank: Kesitsel sıralama [-0.5, +0.5]
+    Ham fiyatlar yerine durağan teknik, makro ve sektörel göstergeleri türetir:
+    - Fiyat/Hacim/Momentum (15)
+    - Piyasa Bağlamı & Makro Rejim (5)
+    - Dalga-1 Makro & Beta (8)
+    - Dalga-2 TCMB Politika Faizi (3)
+    - Dalga-2 CDS Sovereign Risk Proxy (3)
+    - Sektörel & Kurumsal Para Akışı (5): Bank_vs_Market, Indus_vs_Market, Sector_Relative_Strength_10d, MFI_14_Norm, OBV_Trend_10d
     """
     df_p = df_panel.copy()
     df_p["Date"] = pd.to_datetime(df_p["Date"])
@@ -220,15 +290,26 @@ def add_technical_features(
     # Endeks verisini birleştir
     if df_index is not None and not df_index.empty:
         idx_df = process_index_data(df_index)
-        df_p = pd.merge(df_p, idx_df[["Date", "Index_Log_Return", "Index_Volatility_20", "Target_Index_Return"]], on="Date", how="left")
+        idx_merge_cols = [c for c in ["Date", "Index_Log_Return", "Index_Volatility_20", "Target_Index_Return", "Market_Trend_SMA50", "Market_Trend_SMA200"] if c in idx_df.columns]
+        df_p = pd.merge(df_p, idx_df[idx_merge_cols], on="Date", how="left")
     else:
         df_p["Index_Log_Return"] = 0.0
         df_p["Index_Volatility_20"] = 0.0
         df_p["Target_Index_Return"] = 0.0
+        df_p["Market_Trend_SMA50"] = 1.0
+        df_p["Market_Trend_SMA200"] = 1.0
 
     df_p["Index_Log_Return"] = df_p["Index_Log_Return"].fillna(0.0)
     df_p["Index_Volatility_20"] = df_p["Index_Volatility_20"].fillna(0.0)
     df_p["Target_Index_Return"] = df_p["Target_Index_Return"].fillna(0.0)
+    if "Market_Trend_SMA50" not in df_p.columns:
+        df_p["Market_Trend_SMA50"] = 1.0
+    else:
+        df_p["Market_Trend_SMA50"] = df_p["Market_Trend_SMA50"].fillna(1.0)
+    if "Market_Trend_SMA200" not in df_p.columns:
+        df_p["Market_Trend_SMA200"] = 1.0
+    else:
+        df_p["Market_Trend_SMA200"] = df_p["Market_Trend_SMA200"].fillna(1.0)
 
     # Makro verileri birleştir
     if df_macro is not None and not df_macro.empty:
@@ -257,15 +338,23 @@ def add_technical_features(
     tcmb_cols = ["TCMB_Policy_Rate", "TCMB_Rate_Change", "TCMB_Days_Since_Decision"]
     df_p[tcmb_cols] = df_p[tcmb_cols].ffill().fillna(0.0)
 
-    # KAP ve Finansal Haber Türkçe BERT Duygu Verilerini Birleştir (Dalga-2 Adım 3 & V4)
-    try:
-        from extraction_kap import merge_kap_features_into_panel
-        df_p = merge_kap_features_into_panel(df_p)
-    except Exception as e:
-        print(f"  [!] KAP duygu verisi eklenirken hata: {e}. Nötr sıfırlar atanıyor.")
-        df_p["KAP_Sentiment"] = 0.0
-        df_p["KAP_News_Count"] = 0.0
-        df_p["KAP_Sentiment_Shock_3d"] = 0.0
+    # Sektör Verilerini Birleştir (XBANK ve XUSIN)
+    if df_sector is not None and not df_sector.empty:
+        sec_df = process_sector_data(df_sector)
+        df_p = pd.merge(df_p, sec_df, on="Date", how="left")
+    else:
+        df_p["Bank_Log_Return"] = 0.0
+        df_p["Indus_Log_Return"] = 0.0
+        df_p["Bank_Mom10"] = 0.0
+        df_p["Indus_Mom10"] = 0.0
+
+    df_p["Bank_Log_Return"] = df_p["Bank_Log_Return"].ffill().fillna(0.0)
+    df_p["Indus_Log_Return"] = df_p["Indus_Log_Return"].ffill().fillna(0.0)
+    df_p["Bank_Mom10"] = df_p["Bank_Mom10"].ffill().fillna(0.0)
+    df_p["Indus_Mom10"] = df_p["Indus_Mom10"].ffill().fillna(0.0)
+
+    df_p["Bank_vs_Market"] = df_p["Bank_Log_Return"] - df_p["Index_Log_Return"]
+    df_p["Indus_vs_Market"] = df_p["Indus_Log_Return"] - df_p["Index_Log_Return"]
 
     groups = []
     for ticker, group in df_p.groupby("Ticker", group_keys=False):
@@ -277,9 +366,11 @@ def add_technical_features(
         g["CO_Return"] = (g["Close"] - g["Open"]) / g["Open"]
         g["Excess_Return"] = g["Log_Return"] - g["Index_Log_Return"]
 
-        # 2. Hacim Dinamikleri
+        # 2. Hacim ve Likidite Dinamikleri (Kurumsal Likidite Filtresi için)
         g["Log_Volume"] = np.log1p(g["Volume"])
         g["Volume_Change"] = g["Log_Volume"].diff()
+        g["Turnover_TRY"] = g["Volume"] * g["Close"]
+        g["ADV20_TRY"] = g["Turnover_TRY"].rolling(window=20, min_periods=3).mean().fillna(0.0)
 
         # 3. Hareketli Ortalama Oranları
         sma_10 = g["Close"].rolling(window=10, min_periods=2).mean()
@@ -294,7 +385,15 @@ def add_technical_features(
         raw_rsi = _compute_rsi(g["Close"], window=14)
         g["RSI_Norm"] = ((raw_rsi - 50.0) / 50.0).fillna(0.0)
 
-        # 6. Dinamik Makro Hassasiyetler (Rolling Betalar)
+        # 6. ATR (14) - Yüzdesel Risk ve Volatilite Ölçütü (Dinamik Stop-Loss için)
+        tr1 = g["High"] - g["Low"]
+        tr2 = (g["High"] - g["Close"].shift(1)).abs()
+        tr3 = (g["Low"] - g["Close"].shift(1)).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr_14 = tr.rolling(window=14, min_periods=3).mean()
+        g["ATR_14_Pct"] = ((atr_14 / g["Close"]) * 100.0).fillna(3.0)
+
+        # 7. Dinamik Makro Hassasiyetler (Rolling Betalar)
         cov_fx = g["Log_Return"].rolling(window=60, min_periods=5).cov(g["USDTRY_Return"])
         var_fx = g["USDTRY_Return"].rolling(window=60, min_periods=5).var()
         g["Beta_FX_60d"] = (cov_fx / (var_fx + 1e-7)).fillna(0.0).clip(-5.0, 5.0)
@@ -307,44 +406,117 @@ def add_technical_features(
         var_cds = g["CDS_Spread_Diff"].rolling(window=60, min_periods=5).var()
         g["Beta_CDS_60d"] = (cov_cds / (var_cds + 1e-7)).fillna(0.0).clip(-5.0, 5.0)
 
-        # 7. Event-Driven Haber Momentum ve Şok Dinamikleri
-        s_roll3 = g["KAP_Sentiment"].rolling(window=3, min_periods=1).mean()
-        s_roll20 = g["KAP_Sentiment"].rolling(window=20, min_periods=1).mean()
-        g["KAP_Sentiment_Shock_3d"] = (s_roll3 - s_roll20).fillna(0.0).clip(-1.0, 1.0)
+        # 8. Çok Günlü Trend ve Momentum Öznitelikleri (5-10-20 Günlük Ufuk)
+        g["Momentum_5d"] = (g["Close"] / g["Close"].shift(5) - 1.0).fillna(0.0)
+        g["Momentum_10d"] = (g["Close"] / g["Close"].shift(10) - 1.0).fillna(0.0)
+        g["Momentum_20d"] = (g["Close"] / g["Close"].shift(20) - 1.0).fillna(0.0)
+
+        # Endekse Göre Rölatif Güç (Alpha Momentum)
+        if "Index_Close" in g.columns and g["Index_Close"].notna().any():
+            idx_mom5 = (g["Index_Close"] / g["Index_Close"].shift(5) - 1.0).fillna(0.0)
+            idx_mom10 = (g["Index_Close"] / g["Index_Close"].shift(10) - 1.0).fillna(0.0)
+            g["Relative_Strength_5d"] = g["Momentum_5d"] - idx_mom5
+            g["Relative_Strength_10d"] = g["Momentum_10d"] - idx_mom10
+        else:
+            g["Relative_Strength_5d"] = g["Momentum_5d"]
+            g["Relative_Strength_10d"] = g["Momentum_10d"]
+
+        # Sektörel Göreceli Güç (Hissenin Kendi Sektörüne Göre 10 Günlük Relatif Momenti)
+        t_clean = ticker.replace(".IS", "")
+        sec_type = TICKER_SECTOR_MAP.get(t_clean, "OTHER")
+        if sec_type == "BANK":
+            g["Sector_Relative_Strength_10d"] = g["Momentum_10d"] - g["Bank_Mom10"]
+        elif sec_type == "INDUS":
+            g["Sector_Relative_Strength_10d"] = g["Momentum_10d"] - g["Indus_Mom10"]
+        else:
+            g["Sector_Relative_Strength_10d"] = g["Relative_Strength_10d"]
+
+        # Hacim Trendi (Son 5 Gün Hacim / Son 20 Gün Hacim)
+        vol_5 = g["Volume"].rolling(window=5, min_periods=2).mean()
+        vol_20 = g["Volume"].rolling(window=20, min_periods=5).mean()
+        g["Volume_Ratio_5_20"] = ((vol_5 / (vol_20 + 1e-4)) - 1.0).fillna(0.0).clip(-2.0, 5.0)
+
+        # Para Akışı Endeksi (Money Flow Index - MFI 14, [-1, +1] normalize)
+        typ_price = (g["High"] + g["Low"] + g["Close"]) / 3.0
+        raw_money_flow = typ_price * g["Volume"]
+        price_diff = typ_price.diff()
+        pos_flow = raw_money_flow.where(price_diff > 0, 0.0)
+        neg_flow = raw_money_flow.where(price_diff < 0, 0.0)
+        pos_mf = pos_flow.rolling(window=14, min_periods=3).sum()
+        neg_mf = neg_flow.rolling(window=14, min_periods=3).sum()
+        mfr = pos_mf / (neg_mf + 1e-6)
+        mfi = 100.0 - (100.0 / (1.0 + mfr))
+        g["MFI_14_Norm"] = ((mfi - 50.0) / 50.0).fillna(0.0).clip(-1.0, 1.0)
+
+        # On-Balance Volume (OBV) 10-Günlük Trend Eğimi (Kurumsal Para Girişi Proxy)
+        obv_dir = np.sign(g["Close"].diff()).fillna(0.0)
+        obv = (obv_dir * g["Volume"]).cumsum()
+        obv_mean = obv.rolling(window=10, min_periods=3).mean()
+        obv_std = obv.rolling(window=10, min_periods=3).std()
+        g["OBV_Trend_10d"] = (((obv - obv_mean) / (obv_std + 1e-4)).fillna(0.0).clip(-3.0, 3.0)) / 3.0
 
         # ---------------------------------------------------------------------
-        # HEDEF DEĞİŞKENLER (TARGETS): T+1 Getirisi ve Alfa
+        # HEDEF DEĞİŞKENLER (TARGETS): 5 Günlük Kapanış-Kapanış (Close_t -> Close_{t+5})
+        # Giriş: Gün sonu kapanış müzayedesi (17:50 - 18:00) -> Gecelik Gap primleri portföyde kalır!
+        # Çıkış: 5 iş günü sonraki kapanış (Close_{t+5}) -> Haftalık Rebalans
+        # Stop: Gün içi whipsaw iptal; gün sonu kapanışlarındaki en düşük getiri izlenir.
         # ---------------------------------------------------------------------
-        next_close = g["Close"].shift(-1)
-        g["Target_Return"] = ((next_close - g["Close"]) / g["Close"]) * 100.0
-        g["Target_Excess_Return"] = g["Target_Return"] - g["Target_Index_Return"]
-        g["Target_Direction"] = (g["Target_Return"] > 0).astype(float)
-        g["Target_Direction_Alpha"] = (g["Target_Excess_Return"] > 0).astype(float)
+        next_5d_close = g["Close"].shift(-5)
+        valid_5d = (g["Close"] > 0) & (next_5d_close > 0) & next_5d_close.notna()
+        raw_5d_return = ((next_5d_close - g["Close"]) / g["Close"]) * 100.0
+        g["Target_Return_5d"] = raw_5d_return.where(valid_5d, np.nan)
+
+        # 5 Gün boyunca gün sonu kapanışlarında görülen minimum ve maksimum getiri (EOD Stop)
+        future_closes = pd.concat([g["Close"].shift(-i) for i in range(1, 6)], axis=1)
+        min_future_close = future_closes.min(axis=1)
+        max_future_close = future_closes.max(axis=1)
+        g["Target_Min_Close_Return_5d"] = (((min_future_close - g["Close"]) / g["Close"]) * 100.0).where(valid_5d, np.nan)
+        g["Target_Max_Close_Return_5d"] = (((max_future_close - g["Close"]) / g["Close"]) * 100.0).where(valid_5d, np.nan)
+
+        if "Target_Index_Return_5d" in g.columns:
+            g["Target_Excess_Return_5d"] = g["Target_Return_5d"] - g["Target_Index_Return_5d"]
+        else:
+            g["Target_Excess_Return_5d"] = g["Target_Return_5d"]
+
+        g["Target_Direction_5d"] = (g["Target_Excess_Return_5d"] > 0).astype(float)
+
+        # Standart hedefleri 5 günlük kapanış-kapanış ufkuyla eşle
+        g["Target_Return"] = g["Target_Return_5d"]
+        g["Target_Excess_Return"] = g["Target_Excess_Return_5d"]
+        g["Target_Direction_Alpha"] = g["Target_Direction_5d"]
+        g["Target_Low_Return"] = g["Target_Min_Close_Return_5d"]
+        g["Target_High_Return"] = g["Target_Max_Close_Return_5d"]
 
         groups.append(g)
 
     df_features = pd.concat(groups, ignore_index=True)
 
-    # 8. Kesitsel Sıralamalar (Cross-Sectional Percentile Rank: [-0.5, +0.5])
+    # 1. Katman Makro Rejim Kapısı: XU100 > SMA50 ve Düşük/Normal Kur Oynaklığı
+    sma50_ok = (df_features["Market_Trend_SMA50"] == 1.0) if "Market_Trend_SMA50" in df_features.columns else pd.Series(True, index=df_features.index)
+    usd_vol_ok = (df_features["USDTRY_Vol_20"] < 0.025) if "USDTRY_Vol_20" in df_features.columns else pd.Series(True, index=df_features.index)
+    df_features["Macro_Regime_Bull"] = (sma50_ok & usd_vol_ok).astype(float)
+
+    # 9. Kesitsel Sıralamalar (Cross-Sectional Percentile Rank: [-0.5, +0.5])
     df_features["Cross_Rank_Return"] = df_features.groupby("Date")["Log_Return"].rank(pct=True) - 0.5
     df_features["Target_Rank"] = df_features.groupby("Date")["Target_Return"].rank(pct=True) - 0.5
     df_features["Target_Excess_Rank"] = df_features.groupby("Date")["Target_Excess_Return"].rank(pct=True) - 0.5
 
     feature_cols = [
-        # Hisse Fiyat/Hacim (9)
+        # Hisse Fiyat/Hacim & Momentum (15)
         "Log_Return", "HL_Spread", "CO_Return", "Log_Volume",
         "Volume_Change", "SMA10_Ratio", "SMA30_Ratio", "Volatility_20", "RSI_Norm",
-        # Piyasa Bağlamı (3)
-        "Index_Log_Return", "Excess_Return", "Cross_Rank_Return",
+        "Momentum_5d", "Momentum_10d", "Momentum_20d", "Relative_Strength_5d", "Relative_Strength_10d", "Volume_Ratio_5_20",
+        # Sektörel & Kurumsal Para Akışı (5)
+        "Bank_vs_Market", "Indus_vs_Market", "Sector_Relative_Strength_10d", "MFI_14_Norm", "OBV_Trend_10d",
+        # Piyasa Bağlamı & Makro Rejim (5)
+        "Index_Log_Return", "Excess_Return", "Cross_Rank_Return", "Market_Trend_SMA50", "Macro_Regime_Bull",
         # Dalga-1 Makro & Beta (8)
         "USDTRY_Return", "USDTRY_Vol_20", "VIX_Level", "VIX_Change",
         "Brent_Return", "Gold_Return", "Beta_FX_60d", "Beta_Market_60d",
         # Dalga-2 TCMB Politika Faizi (3)
         "TCMB_Policy_Rate", "TCMB_Rate_Change", "TCMB_Days_Since_Decision",
         # Dalga-2 CDS Sovereign Risk Proxy (3)
-        "CDS_Proxy_Chg5", "CDS_Proxy_ZScore_60d", "Beta_CDS_60d",
-        # Dalga-2 Adım 3: Event-Driven KAP & Haber Türkçe BERT Duygu Öznitelikleri (3)
-        "KAP_Sentiment", "KAP_News_Count", "KAP_Sentiment_Shock_3d"
+        "CDS_Proxy_Chg5", "CDS_Proxy_ZScore_60d", "Beta_CDS_60d"
     ]
     df_features = df_features.dropna(subset=feature_cols + ["Target_Return"]).reset_index(drop=True)
 
@@ -394,30 +566,83 @@ def split_by_date(
     return train_df, val_df, test_df
 
 
+STOCK_SPECIFIC_COLS = [
+    # Hisse Fiyat/Hacim & Momentum (15)
+    "Log_Return", "HL_Spread", "CO_Return", "Log_Volume",
+    "Volume_Change", "SMA10_Ratio", "SMA30_Ratio", "Volatility_20", "RSI_Norm",
+    "Momentum_5d", "Momentum_10d", "Momentum_20d", "Relative_Strength_5d", "Relative_Strength_10d", "Volume_Ratio_5_20",
+    # Sektörel & Kurumsal Para Akışı (5)
+    "Bank_vs_Market", "Indus_vs_Market", "Sector_Relative_Strength_10d", "MFI_14_Norm", "OBV_Trend_10d",
+    # Kesitsel Ayrışma & Betalar (5)
+    "Excess_Return", "Cross_Rank_Return", "Beta_FX_60d", "Beta_Market_60d", "Beta_CDS_60d"
+]
+
+MACRO_MARKET_COLS = [
+    # Piyasa Bağlamı & Makro Rejim (3)
+    "Index_Log_Return", "Market_Trend_SMA50", "Macro_Regime_Bull",
+    # Dalga-1 Makro & Beta (6)
+    "USDTRY_Return", "USDTRY_Vol_20", "VIX_Level", "VIX_Change",
+    "Brent_Return", "Gold_Return",
+    # Dalga-2 TCMB Politika Faizi (3)
+    "TCMB_Policy_Rate", "TCMB_Rate_Change", "TCMB_Days_Since_Decision",
+    # Dalga-2 CDS Sovereign Risk Proxy (2)
+    "CDS_Proxy_Chg5", "CDS_Proxy_ZScore_60d"
+]
+
+
 # =============================================================================
-# 4. ÖLÇEKLEME (ROBUST SCALER - DATA LEAKAGE OLMADAN)
+# 4. ÖLÇEKLEME (GÜNLÜK KESİTSEL Z-SCORE + MAKRO ROBUST SCALER - QLIB STANDARDI)
 # =============================================================================
 def scale_features(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    feature_cols: List[str]
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, RobustScaler]:
+    feature_cols: List[str],
+    stock_cols: Optional[List[str]] = None,
+    macro_cols: Optional[List[str]] = None
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Optional[RobustScaler]]:
     """
-    Öznitelikleri RobustScaler (medyan ve IQR tabanlı) ile ölçekler.
-    Kritik İlke: Scaler YALNIZCA Train verisi üzerinde fit edilir.
-    Validation ve Test verisi sadece transform edilir (Veri sızıntısını engeller).
+    Kantitatif Hibrit Ölçekleme (Qlib / WorldQuant Standardı):
+    1. Hisse Bazlı Öznitelikler (stock_cols):
+       Her t işlem gününde işlem gören hisseler arasında kesitsel Z-Score (cross-sectional norm)
+       uygulanır ve [-3.0, 3.0] aralığına kırpılır.
+       Böylece model rejim farklarından arınarak her gün sadece hisselerin birbirine göre üstünlüğünü öğrenir.
+    2. Makro & Piyasa Bağlamı Öznitelikleri (macro_cols):
+       Zaman serisi boyunca yalnızca Train verisine fit edilen RobustScaler ile ölçeklenir.
+       Böylece makro göstergeler (VIX, TCMB faizi, kur oynaklığı) gün içi sıfırlanmaz.
     """
-    scaler = RobustScaler()
-    scaler.fit(train_df[feature_cols])
+    if stock_cols is None:
+        stock_cols = [c for c in STOCK_SPECIFIC_COLS if c in feature_cols]
+    if macro_cols is None:
+        macro_cols = [c for c in MACRO_MARKET_COLS if c in feature_cols]
 
-    train_scaled = train_df.copy()
-    val_scaled = val_df.copy()
-    test_scaled = test_df.copy()
+    def _cross_sectional_norm(df_in: pd.DataFrame) -> pd.DataFrame:
+        if df_in.empty or not stock_cols:
+            return df_in
+        df_out = df_in.copy()
+        valid_cols = [c for c in stock_cols if c in df_out.columns]
+        if valid_cols and "Date" in df_out.columns:
+            grouped = df_out.groupby("Date")[valid_cols]
+            mean = grouped.transform("mean")
+            std = grouped.transform("std").replace(0, np.nan).fillna(1.0)
+            df_out[valid_cols] = ((df_out[valid_cols] - mean) / std).clip(-3.0, 3.0).fillna(0.0)
+        return df_out
 
-    train_scaled[feature_cols] = scaler.transform(train_df[feature_cols])
-    val_scaled[feature_cols] = scaler.transform(val_df[feature_cols])
-    test_scaled[feature_cols] = scaler.transform(test_df[feature_cols])
+    # 1. Hisse bazlı göstergelerde her gün kendi içinde normalize edilir (Causal, zero leakage)
+    train_scaled = _cross_sectional_norm(train_df)
+    val_scaled = _cross_sectional_norm(val_df)
+    test_scaled = _cross_sectional_norm(test_df)
+
+    # 2. Makro göstergeler için RobustScaler (sadece train verisine fit)
+    scaler = None
+    if macro_cols:
+        valid_macro = [c for c in macro_cols if c in train_scaled.columns]
+        if valid_macro:
+            scaler = RobustScaler()
+            scaler.fit(train_scaled[valid_macro])
+            train_scaled[valid_macro] = scaler.transform(train_scaled[valid_macro])
+            val_scaled[valid_macro] = scaler.transform(val_scaled[valid_macro])
+            test_scaled[valid_macro] = scaler.transform(test_scaled[valid_macro])
 
     return train_scaled, val_scaled, test_scaled, scaler
 
@@ -579,12 +804,14 @@ def load_and_preprocess_pipeline(
     cls_target: str = "Target_Direction_Alpha",
     raw_df: Optional[pd.DataFrame] = None,
     df_index: Optional[pd.DataFrame] = None,
-    df_macro: Optional[pd.DataFrame] = None
+    df_macro: Optional[pd.DataFrame] = None,
+    df_sector: Optional[pd.DataFrame] = None
 ) -> Dict[str, Any]:
     """
-    Yahoo Finance üzerinden BIST100 hisseleri, XU100 endeksi ve Dalga-1/Dalga-2 makro verilerini çeker.
-    29 durağan özellik (teknik + makro + TCMB + CDS + KAP Sentiment Shock) üretir, train/val/test ayrımı ve RobustScaler uygulayarak
-    hem 3D tensörleri (GRU için) hem de tabular veri çerçevelerini (LightGBM için) döner.
+    Yahoo Finance üzerinden BIST100 hisseleri, XU100 endeksi, Dalga-1/Dalga-2 makro verileri
+    ve BIST Sektör Endekslerini (XBANK, XUSIN) çeker.
+    39 durağan özellik (teknik + makro + TCMB + CDS + Sektör + MFI/OBV) üretir,
+    train/val/test ayrımı ve RobustScaler uygulayarak hem 3D tensörleri hem tabular veriyi döner.
     """
     if df_index is None:
         print(f"Endeks verisi (XU100.IS) yfinance üzerinden çekiliyor (period={period})...")
@@ -593,6 +820,10 @@ def load_and_preprocess_pipeline(
     if df_macro is None:
         print(f"Dalga-1 makro verileri (USDTRY, VIX, Brent, Altın) yfinance üzerinden çekiliyor (period={period})...")
         df_macro = makro_verileri_cek(period=period)
+
+    if df_sector is None:
+        print(f"BIST Bankacılık ve Sınai sektör verileri yfinance üzerinden çekiliyor (period={period})...")
+        df_sector = sektor_verilerini_cek(period=period)
 
     if raw_df is None:
         print(f"BIST 100 hisse verileri yfinance üzerinden çekiliyor (period={period})...")
@@ -603,21 +834,9 @@ def load_and_preprocess_pipeline(
         val_end = None
 
     df_panel = prepare_panel_data(raw_df)
-    df_features = add_technical_features(df_panel, df_index=df_index, df_macro=df_macro)
+    df_features = add_technical_features(df_panel, df_index=df_index, df_macro=df_macro, df_sector=df_sector)
 
-    assert "KAP_Sentiment_Shock_3d" in df_features.columns, "KAP_Sentiment_Shock_3d sütunu df_features içinde bulunamadı!"
-    assert df_features["KAP_Sentiment_Shock_3d"].isna().sum() == 0, "KAP_Sentiment_Shock_3d içinde NaN değer bulundu!"
-
-    feature_cols = [
-        "Log_Return", "HL_Spread", "CO_Return", "Log_Volume",
-        "Volume_Change", "SMA10_Ratio", "SMA30_Ratio", "Volatility_20", "RSI_Norm",
-        "Index_Log_Return", "Excess_Return", "Cross_Rank_Return",
-        "USDTRY_Return", "USDTRY_Vol_20", "VIX_Level", "VIX_Change",
-        "Brent_Return", "Gold_Return", "Beta_FX_60d", "Beta_Market_60d",
-        "TCMB_Policy_Rate", "TCMB_Rate_Change", "TCMB_Days_Since_Decision",
-        "CDS_Proxy_Chg5", "CDS_Proxy_ZScore_60d", "Beta_CDS_60d",
-        "KAP_Sentiment", "KAP_News_Count", "KAP_Sentiment_Shock_3d"
-    ]
+    feature_cols = STOCK_SPECIFIC_COLS + MACRO_MARKET_COLS
 
     train_df, val_df, test_df = split_by_date(df_features, train_end=train_end, val_end=val_end)
     train_s, val_s, test_s, scaler = scale_features(train_df, val_df, test_df, feature_cols)
@@ -655,31 +874,40 @@ if __name__ == "__main__":
     print("=" * 70)
 
     # 1. Ham Veriyi Çek
-    print("\n[1/6] Yahoo Finance üzerinden 10 yıllık modern rejim (2016+) hisse, endeks ve makro veriler çekiliyor...")
+    print("\n[1/6] Yahoo Finance üzerinden 10 yıllık modern rejim (2016+) hisse, endeks, makro ve sektör verileri çekiliyor...")
     df_index = endeks_verisini_cek(period="10y")
     df_macro = makro_verileri_cek(period="10y")
+    df_sector = sektor_verilerini_cek(period="10y")
     df_raw = tum_hisseleri_cek(period="10y")
+    raw_df = df_raw
 
     # 2. Panel Veriye Dönüştür
     print("\n[2/6] Ham veri (Date, Ticker) panel formatına dönüştürülüyor...")
-    df_panel = prepare_panel_data(df_raw)
+    df_panel = prepare_panel_data(raw_df)
     print(f"  -> Panel Veri Boyutu: {df_panel.shape}")
     print(f"  -> Toplam Farklı Hisse Sayısı: {df_panel['Ticker'].nunique()}")
     print(f"  -> Tarih Aralığı: {df_panel['Date'].min().strftime('%Y-%m-%d')} - {df_panel['Date'].max().strftime('%Y-%m-%d')}")
 
-    # 3. Teknik ve Durağan Özellikleri Üret
-    print("\n[3/6] Durağan finansal göstergeler (29 Özellik) ve Target değişkenleri üretiliyor...")
-    df_features = add_technical_features(df_panel, df_index=df_index, df_macro=df_macro)
+    # 3. Teknik, Makro ve Sektörel Özellikleri Üret
+    print("\n[3/6] Durağan finansal göstergeler (Sektör + MFI/OBV Dahil) ve Target değişkenleri üretiliyor...")
+    df_features = add_technical_features(df_panel, df_index=df_index, df_macro=df_macro, df_sector=df_sector)
 
     feature_cols = [
+        # Hisse Fiyat/Hacim & Momentum (15)
         "Log_Return", "HL_Spread", "CO_Return", "Log_Volume",
         "Volume_Change", "SMA10_Ratio", "SMA30_Ratio", "Volatility_20", "RSI_Norm",
-        "Index_Log_Return", "Excess_Return", "Cross_Rank_Return",
+        "Momentum_5d", "Momentum_10d", "Momentum_20d", "Relative_Strength_5d", "Relative_Strength_10d", "Volume_Ratio_5_20",
+        # Sektörel & Kurumsal Para Akışı (5)
+        "Bank_vs_Market", "Indus_vs_Market", "Sector_Relative_Strength_10d", "MFI_14_Norm", "OBV_Trend_10d",
+        # Piyasa Bağlamı & Makro Rejim (5)
+        "Index_Log_Return", "Excess_Return", "Cross_Rank_Return", "Market_Trend_SMA50", "Macro_Regime_Bull",
+        # Dalga-1 Makro & Beta (8)
         "USDTRY_Return", "USDTRY_Vol_20", "VIX_Level", "VIX_Change",
         "Brent_Return", "Gold_Return", "Beta_FX_60d", "Beta_Market_60d",
+        # Dalga-2 TCMB Politika Faizi (3)
         "TCMB_Policy_Rate", "TCMB_Rate_Change", "TCMB_Days_Since_Decision",
-        "CDS_Proxy_Chg5", "CDS_Proxy_ZScore_60d", "Beta_CDS_60d",
-        "KAP_Sentiment", "KAP_News_Count", "KAP_Sentiment_Shock_3d"
+        # Dalga-2 CDS Sovereign Risk Proxy (3)
+        "CDS_Proxy_Chg5", "CDS_Proxy_ZScore_60d", "Beta_CDS_60d"
     ]
     target_col = "Target_Return"
 

@@ -18,7 +18,7 @@ class TemporalSelfAttention(nn.Module):
     30 günlük geçmiş zaman adımlarını dinamik olarak ağırlıklandıran
     Temporal Attention modülü.
     """
-    def __init__(self, input_dim: int, hidden_dim: int = 32):
+    def __init__(self, input_dim: int, hidden_dim: int = 16):
         super().__init__()
         self.projection = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
@@ -36,43 +36,67 @@ class TemporalSelfAttention(nn.Module):
 
 class BISTDualTargetModel(nn.Module):
     """
-    BIST 100 Pay Piyasası için Çok Görevli (Multi-Task) Nedensel GRU Derin Öğrenme Modeli.
+    BIST 100 Pay Piyasası için Çok Görevli (Multi-Task) Nedensel Derin Öğrenme Modeli.
+    Desteklenen Hücre Tipleri: 'gru', 'lstm', 'rnn' (Vanilla Elman RNN).
 
     Girdi:
-        x: (Batch_Size, seq_len=30, num_features=12)
+        x: (Batch_Size, seq_len, num_features)
     Çıktılar:
-        pred_return: T+1 gününün beklenen getiri yüzdesi (Regresyon) -> (Batch_Size,)
-        pred_direction_logit: T+1 gününün yükseliş olasılığı logiti (Sınıflandırma) -> (Batch_Size,)
+        pred_return: Beklenen getiri / göreceli alfa skoru (Regresyon) -> (Batch_Size,)
+        pred_direction_logit: Yükseliş / endeksi yenme olasılığı logiti (Sınıflandırma) -> (Batch_Size,)
     """
     def __init__(
         self,
-        num_features: int = 20,
-        hidden_dim: int = 64,
-        num_layers: int = 2,
-        dropout: float = 0.20,
-        dense_dim: int = 64
+        num_features: int = 39,
+        hidden_dim: int = 32,
+        num_layers: int = 1,
+        dropout: float = 0.40,
+        dense_dim: int = 32,
+        cell_type: str = "gru"
     ):
         super().__init__()
         self.num_features = num_features
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        self.cell_type = cell_type.lower()
 
         # 1. Giriş Normalizasyonu
         self.input_norm = nn.LayerNorm(num_features)
 
-        # 2. Nedensel Zamansal Gövde (Causal Unidirectional GRU)
+        # 2. Nedensel Zamansal Gövde (RNN / LSTM / GRU)
         # Gelecekten geçmişe sızıntıyı önlemek için kesinlikle tek yönlü (bidirectional=False)
-        self.gru = nn.GRU(
-            input_size=num_features,
-            hidden_size=hidden_dim,
-            num_layers=num_layers,
-            batch_first=True,
-            bidirectional=False,
-            dropout=dropout if num_layers > 1 else 0.0
-        )
+        if self.cell_type == "lstm":
+            self.rnn = nn.LSTM(
+                input_size=num_features,
+                hidden_size=hidden_dim,
+                num_layers=num_layers,
+                batch_first=True,
+                bidirectional=False,
+                dropout=dropout if num_layers > 1 else 0.0
+            )
+        elif self.cell_type == "rnn":
+            self.rnn = nn.RNN(
+                input_size=num_features,
+                hidden_size=hidden_dim,
+                num_layers=num_layers,
+                batch_first=True,
+                nonlinearity="tanh",
+                bidirectional=False,
+                dropout=dropout if num_layers > 1 else 0.0
+            )
+        else:  # Varsayılan: gru
+            self.rnn = nn.GRU(
+                input_size=num_features,
+                hidden_size=hidden_dim,
+                num_layers=num_layers,
+                batch_first=True,
+                bidirectional=False,
+                dropout=dropout if num_layers > 1 else 0.0
+            )
+        self.gru = self.rnn  # Geriye dönük uyumluluk referansı
 
         # 3. Temporal Attention Katmanı
-        self.attention = TemporalSelfAttention(input_dim=hidden_dim, hidden_dim=32)
+        self.attention = TemporalSelfAttention(input_dim=hidden_dim, hidden_dim=16)
 
         # 4. Son Adım (t) ve Zamansal Bağlam Birleşimi
         # last_step (hidden_dim) + context (hidden_dim) -> hidden_dim * 2
@@ -108,13 +132,13 @@ class BISTDualTargetModel(nn.Module):
         :return: (pred_return, pred_direction_logit) veya (pred_return, pred_direction_logit, attn_weights)
         """
         x_norm = self.input_norm(x)
-        gru_out, _ = self.gru(x_norm)  # (B, seq_len, hidden_dim)
+        rnn_out, _ = self.rnn(x_norm)  # (B, seq_len, hidden_dim)
 
         # Son adım (en güncel gün t)
-        last_step = gru_out[:, -1, :]  # (B, hidden_dim)
+        last_step = rnn_out[:, -1, :]  # (B, hidden_dim)
 
         # Zamansal attention bağlamı
-        context, attn_weights = self.attention(gru_out)  # context: (B, hidden_dim)
+        context, attn_weights = self.attention(rnn_out)  # context: (B, hidden_dim)
 
         # Son adım ile bağlamı birleştir
         combined = torch.cat([last_step, context], dim=-1)  # (B, hidden_dim * 2)

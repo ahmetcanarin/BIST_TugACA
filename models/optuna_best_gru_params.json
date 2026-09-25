@@ -1,0 +1,17 @@
+{
+  "best_value": 0.0682,
+  "best_params": {
+    "hidden_dim": 96,
+    "num_layers": 1,
+    "dropout": 0.4,
+    "seq_len": 20,
+    "lr": 0.0007543108886850638,
+    "batch_size": 64,
+    "alpha_cls": 3.0,
+    "lambda_cons": 0.8,
+    "gamma_corr": 0.2
+  },
+  "period": "10y",
+  "trials_count": 15,
+  "timestamp": "2026-09-21 09:36:36"
+}

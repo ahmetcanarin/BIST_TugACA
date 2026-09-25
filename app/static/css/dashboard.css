@@ -1,0 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --bg-main: #0b0e14;
+  --bg-card: #121824;
+  --bg-card-hover: #172030;
+  --border-subtle: #1e293b;
+  --border-glow: #2d3748;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --neon-green: #00f29d;
+  --neon-red: #ff4d4d;
+  --neon-gold: #ffb800;
+  --neon-cyan: #38bdf8;
+  --neon-purple: #c084fc;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  overflow-x: hidden;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: #243042;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Glassmorphism / Dark FinTech Card */
+.fin-card {
+  background: rgba(18, 24, 36, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  transition: all 0.2s ease-in-out;
+}
+.fin-card:hover {
+  border-color: #334155;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+}
+
+.fin-glow-green {
+  box-shadow: 0 0 15px -3px rgba(0, 242, 157, 0.25);
+}
+
+.fin-glow-red {
+  box-shadow: 0 0 15px -3px rgba(255, 77, 77, 0.25);
+}
+
+.fin-glow-gold {
+  box-shadow: 0 0 15px -3px rgba(255, 184, 0, 0.25);
+}
+
+/* Status Badges */
+.badge-bull {
+  background-color: rgba(0, 242, 157, 0.12);
+  color: #00f29d;
+  border: 1px solid rgba(0, 242, 157, 0.3);
+}
+
+.badge-bear {
+  background-color: rgba(255, 77, 77, 0.12);
+  color: #ff4d4d;
+  border: 1px solid rgba(255, 77, 77, 0.3);
+}
+
+.badge-cash {
+  background-color: rgba(255, 184, 0, 0.12);
+  color: #ffb800;
+  border: 1px solid rgba(255, 184, 0, 0.3);
+}
+
+/* Pulse animation for live indicators */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.95); }
+}
+
+.live-dot {
+  animation: pulse-subtle 2s infinite ease-in-out;
+}

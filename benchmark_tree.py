@@ -93,6 +93,30 @@ def evaluate_quant_metrics(
     }
 
 
+def compute_relevance_labels(
+    df: pd.DataFrame,
+    target_col: str = "Target_Excess_Return",
+    num_bins: int = 5
+) -> np.ndarray:
+    """
+    Her işlem günü için kesitsel olarak hisseleri num_bins (0..4) dilimlerine böler.
+    LambdaRank / ListNet kayıp fonksiyonu için tamsayı alaka (relevance) düzeyleri üretir.
+    """
+    def _bin_group(s):
+        n = len(s)
+        if n < num_bins:
+            ranks = s.rank(method="first").values.astype(int) - 1
+            return ranks
+        try:
+            return pd.qcut(s.rank(method="first"), q=num_bins, labels=False)
+        except Exception:
+            ranks = s.rank(method="first").values.astype(int) - 1
+            return np.clip(ranks * num_bins // n, 0, num_bins - 1)
+
+    labels = df.groupby("Date", sort=False)[target_col].transform(_bin_group)
+    return labels.values.astype(int)
+
+
 def train_lightgbm_pipeline(
     data_dict: Dict[str, Any],
     model_dir: str = "models",
@@ -110,7 +134,7 @@ def train_lightgbm_pipeline(
     base_features = data_dict["feature_cols"]
 
     print("=" * 70)
-    print("LIGHTGBM TABULAR BENCHMARK EĞİTİMİ BAŞLATILIYOR")
+    print("LIGHTGBM TABULAR BENCHMARK EĞİTİMİ (LAMBDARANK LISTNET) BAŞLATILIYOR")
     print("=" * 70)
 
     # 1. Lag Öznitelikleri Ekleme
@@ -118,27 +142,36 @@ def train_lightgbm_pipeline(
     val_lag, _ = generate_tabular_lag_features(val_df, base_features)
     test_lag, _ = generate_tabular_lag_features(test_df, base_features)
 
+    # LambdaRank için satırların Date bazında sıralı olması ve grup boyutlarının verilmesi zorunludur:
+    train_lag = train_lag.sort_values(["Date", "Ticker"]).reset_index(drop=True)
+    val_lag = val_lag.sort_values(["Date", "Ticker"]).reset_index(drop=True)
+    test_lag = test_lag.sort_values(["Date", "Ticker"]).reset_index(drop=True)
+
     print(f"Toplam Öznitelik Sayısı: {len(full_features)} (Temel: {len(base_features)} + Lagler: {len(full_features) - len(base_features)})")
     print(f"Train Satır: {len(train_lag):,} | Val Satır: {len(val_lag):,} | Test Satır: {len(test_lag):,}")
 
+    train_groups = train_lag.groupby("Date", sort=False).size().to_numpy()
+    val_groups = val_lag.groupby("Date", sort=False).size().to_numpy()
+
+    y_tr_rank = compute_relevance_labels(train_lag, target_col=target_reg, num_bins=5)
+    y_va_rank = compute_relevance_labels(val_lag, target_col=target_reg, num_bins=5)
+
     X_tr = train_lag[full_features]
-    y_tr_reg = train_lag[target_reg]
     y_tr_cls = train_lag[target_cls]
 
     X_va = val_lag[full_features]
-    y_va_reg = val_lag[target_reg]
     y_va_cls = val_lag[target_cls]
 
     X_te = test_lag[full_features]
     y_te_reg = test_lag[target_reg]
     y_te_cls = test_lag[target_cls]
 
-    # 2. LightGBM Regressor (Huber Loss ile uç değerlere dayanıklı alfa tahmini)
-    print("\n[1/2] LightGBM Regressor (Target: Excess Return) eğitiliyor (Ağaç sayısı artırılıyor)...")
-    reg_params = {
-        "objective": "huber",
-        "huber_alpha": 1.0,
-        "metric": "huber",
+    # 2. LightGBM Ranker (Cross-Sectional LambdaRank / NDCG ile Kesitsel Sıralama)
+    print("\n[1/2] LightGBM Ranker (Objective: LambdaRank, Metric: NDCG) eğitiliyor...")
+    ranker_params = {
+        "objective": "lambdarank",
+        "metric": "ndcg",
+        "eval_at": [5, 10],
         "boosting_type": "gbdt",
         "learning_rate": 0.02,
         "num_leaves": 31,
@@ -150,16 +183,19 @@ def train_lightgbm_pipeline(
         "reg_lambda": 5.0,
         "random_state": 42,
         "n_estimators": 250,
-        "verbose": -1
+        "verbose": -1,
+        "n_jobs": -1
     }
 
-    reg_model = lgb.LGBMRegressor(**reg_params)
+    reg_model = lgb.LGBMRanker(**ranker_params)
     reg_model.fit(
-        X_tr, y_tr_reg,
-        eval_set=[(X_va, y_va_reg)],
+        X_tr, y_tr_rank,
+        group=train_groups,
+        eval_set=[(X_va, y_va_rank)],
+        eval_group=[val_groups],
         callbacks=[lgb.early_stopping(stopping_rounds=100, verbose=False)]
     )
-    print(f"  -> Regressor Eğitilen Ağaç Sayısı: {reg_model.booster_.num_trees()}")
+    print(f"  -> Ranker Eğitilen Ağaç Sayısı: {reg_model.booster_.num_trees()}")
 
     # 3. LightGBM Classifier (Target: Direction Alpha)
     print("\n[2/2] LightGBM Classifier (Target: Direction Alpha) eğitiliyor (Ağaç sayısı artırılıyor)...")

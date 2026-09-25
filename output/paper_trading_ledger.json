@@ -1,0 +1,47 @@
+{
+  "initial_capital_try": 1000000.0,
+  "current_cash_try": 1016220.02,
+  "current_portfolio_value_try": 1016220.02,
+  "total_pnl_try": 16220.02,
+  "total_return_pct": 1.62,
+  "benchmark_cumulative_pct": 0.0,
+  "total_trades_count": 0,
+  "stopped_out_trades_count": 0,
+  "cooldown_remaining": 0,
+  "daily_history": [
+    {
+      "execution_date": "2026-09-25",
+      "action": "MAKRO REJİM KAPISI: AYI PİYASASI (100% Nakit / PPF Repo)",
+      "start_equity_try": 1000000.0,
+      "end_equity_try": 1008077.39,
+      "net_daily_pnl_try": 8077.39,
+      "daily_return_pct": 0.81,
+      "benchmark_return_pct": 0.0,
+      "alpha_daily_pct": 0.81,
+      "cumulative_return_pct": 0.81,
+      "benchmark_cumulative_pct": 0.0,
+      "circuit_breaker_active": false,
+      "stopped_out_count": 0,
+      "trailing_stopped_count": 0,
+      "trades_count": 0
+    },
+    {
+      "execution_date": "2026-09-25",
+      "action": "MAKRO REJİM KAPISI: AYI PİYASASI (100% Nakit / PPF Repo)",
+      "start_equity_try": 1008077.39,
+      "end_equity_try": 1016220.02,
+      "net_daily_pnl_try": 8142.63,
+      "daily_return_pct": 0.81,
+      "benchmark_return_pct": 0.0,
+      "alpha_daily_pct": 0.81,
+      "cumulative_return_pct": 1.62,
+      "benchmark_cumulative_pct": 0.0,
+      "circuit_breaker_active": false,
+      "stopped_out_count": 0,
+      "trailing_stopped_count": 0,
+      "trades_count": 0
+    }
+  ],
+  "executed_trades": [],
+  "trailing_stopped_trades_count": 0
+}
