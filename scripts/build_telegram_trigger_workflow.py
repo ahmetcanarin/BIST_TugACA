@@ -1,0 +1,154 @@
+import json
+import os
+
+workflow = {
+    "id": "tG8aM4pX9nC2zK3w",
+    "name": "BIST Telegram Interactive Chat Agent",
+    "active": True,
+    "nodes": [
+        {
+            "parameters": {
+                "updates": [
+                    "message"
+                ],
+                "additionalFields": {}
+            },
+            "id": "2b3c4d5e-0001-4000-8000-000000000001",
+            "name": "Telegram Trigger",
+            "type": "n8n-nodes-base.telegramTrigger",
+            "typeVersion": 1.2,
+            "position": [220, 320],
+            "webhookId": "bist-telegram-inbound",
+            "credentials": {
+                "telegramApi": {
+                    "id": "BOV90uoELmmkUAJP",
+                    "name": "Telegram account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "={{ $json.message.text }}",
+                "options": {
+                    "systemMessage": "Sen BIST 100 Quant Trading Terminali'nin kıdemli yapay zeka portföy yöneticisi ve finansal asistanısın. Kullanıcı Telegram üzerinden seninle sohbet ediyor ve portföy, hisse sinyalleri, piyasa rejimi veya model performansı hakkında sorular soruyor. Elindeki araçları (Tools) kullanarak sistemdeki canlı verileri sorgula ve kullanıcıya Türkçe, net, profesyonel, güven veren ve gerekçeli finansal yanıtlar ver. Gereksiz teknik formül açıklaması yapma, doğrudan soruya odaklan."
+                }
+            },
+            "id": "2b3c4d5e-0002-4000-8000-000000000002",
+            "name": "AI Agent (Financial Analyst)",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [480, 320]
+        },
+        {
+            "parameters": {
+                "modelName": "models/gemini-3.8-flash",
+                "options": {}
+            },
+            "id": "2b3c4d5e-0003-4000-8000-000000000003",
+            "name": "Google Gemini Chat Model",
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1.1,
+            "position": [400, 540],
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "EYDbvrA9gEvhiUWd",
+                    "name": "Google Gemini(PaLM) Api account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "url": "http://fastapi_bist:8000/api/v1/signals/daily",
+                "options": {},
+                "sendHeaders": True,
+                "headerParameters": {
+                    "parameters": [{"name": "X-API-Key", "value": "bist_quant_secret_2026"}]
+                }
+            },
+            "id": "2b3c4d5e-0004-4000-8000-000000000004",
+            "name": "Tool: Get Daily Signals",
+            "description": "Günün en yüksek beklenen alfaya sahip Top 5 Long hisse sinyallerini, model güven skorlarını, ters volatilite ağırlıklarını ve stop seviyelerini döner.",
+            "type": "n8n-nodes-base.httpRequestTool",
+            "typeVersion": 4.5,
+            "position": [620, 540]
+        },
+        {
+            "parameters": {
+                "url": "http://fastapi_bist:8000/api/v1/market/regime",
+                "options": {},
+                "sendHeaders": True,
+                "headerParameters": {
+                    "parameters": [{"name": "X-API-Key", "value": "bist_quant_secret_2026"}]
+                }
+            },
+            "id": "2b3c4d5e-0005-4000-8000-000000000005",
+            "name": "Tool: Get Market Regime",
+            "description": "Tier 1 Makro Rejim Kapısı durumunu döner. Piyasanın Boğa mı (hisse alımı onaylı) yoksa Ayı/Defansif mi (%100 PPF Repo Nakit) olduğunu söyler.",
+            "type": "n8n-nodes-base.httpRequestTool",
+            "typeVersion": 4.5,
+            "position": [780, 540]
+        },
+        {
+            "parameters": {
+                "url": "http://fastapi_bist:8000/api/v1/portfolio/ledger",
+                "options": {},
+                "sendHeaders": True,
+                "headerParameters": {
+                    "parameters": [{"name": "X-API-Key", "value": "bist_quant_secret_2026"}]
+                }
+            },
+            "id": "2b3c4d5e-0006-4000-8000-000000000006",
+            "name": "Tool: Get Portfolio Ledger",
+            "description": "Portföyün toplam özsermayesini (TL), nakit rezervini, kümülatif net alfayı ve bugüne kadarki PnL durumunu döner.",
+            "type": "n8n-nodes-base.httpRequestTool",
+            "typeVersion": 4.5,
+            "position": [940, 540]
+        },
+        {
+            "parameters": {
+                "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+                "text": "={{ $json.output }}",
+                "additionalFields": {}
+            },
+            "id": "2b3c4d5e-0007-4000-8000-000000000007",
+            "name": "Send Telegram Reply",
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.2,
+            "position": [780, 320],
+            "credentials": {
+                "telegramApi": {
+                    "id": "BOV90uoELmmkUAJP",
+                    "name": "Telegram account"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Telegram Trigger": {
+            "main": [[{"node": "AI Agent (Financial Analyst)", "type": "main", "index": 0}]]
+        },
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [[{"node": "AI Agent (Financial Analyst)", "type": "ai_languageModel", "index": 0}]]
+        },
+        "Tool: Get Daily Signals": {
+            "ai_tool": [[{"node": "AI Agent (Financial Analyst)", "type": "ai_tool", "index": 0}]]
+        },
+        "Tool: Get Market Regime": {
+            "ai_tool": [[{"node": "AI Agent (Financial Analyst)", "type": "ai_tool", "index": 0}]]
+        },
+        "Tool: Get Portfolio Ledger": {
+            "ai_tool": [[{"node": "AI Agent (Financial Analyst)", "type": "ai_tool", "index": 0}]]
+        },
+        "AI Agent (Financial Analyst)": {
+            "main": [[{"node": "Send Telegram Reply", "type": "main", "index": 0}]]
+        }
+    },
+    "settings": {"executionOrder": "v1"}
+}
+
+os.makedirs("n8n", exist_ok=True)
+with open("n8n/bist_telegram_trigger_agent.json", "w", encoding="utf-8") as f:
+    json.dump([workflow], f, ensure_ascii=False, indent=2)
+
+print("SUCCESS: bist_telegram_trigger_agent.json successfully created!")

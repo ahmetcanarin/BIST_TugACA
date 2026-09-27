@@ -1,0 +1,336 @@
+[
+  {
+    "id": "kG9eB2qX8mP4zL1w",
+    "name": "BIST 100 Quant Autonomous Trading Agent",
+    "active": false,
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "e457f50e-56e6-4993-8bc6-91e8783457a1",
+        "name": "Manual Test Trigger",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          220,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "45 17 * * 1-5"
+              },
+              {
+                "field": "cronExpression",
+                "expression": "50 9 * * 1-5"
+              }
+            ]
+          }
+        },
+        "id": "bb4ffec6-0cf8-4171-8bc6-09d6fbb348c3",
+        "name": "BIST Trading Hours Cron",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          220,
+          420
+        ]
+      },
+      {
+        "parameters": {
+          "url": "http://fastapi_bist:8000/api/v1/market/regime",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "bist_quant_secret_2026"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "7fa490c6-30c1-4545-9279-0526048d28db",
+        "name": "Get Market Regime",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          440,
+          320
+        ]
+      },
+      {
+        "parameters": {
+          "url": "http://fastapi_bist:8000/api/v1/champion/status",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "bist_quant_secret_2026"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "5a8e12f0-1c34-4a29-b68e-908bcda71234",
+        "name": "Get Champion Status",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          660,
+          320
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://fastapi_bist:8000/api/v1/signals/refresh",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "bist_quant_secret_2026"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "ac697f94-912a-4340-97eb-30f142dfa52b",
+        "name": "Refresh Daily Signals",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          880,
+          320
+        ]
+      },
+      {
+        "parameters": {
+          "url": "http://fastapi_bist:8000/api/v1/portfolio/ledger",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "bist_quant_secret_2026"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "673f32bc-c7f7-41ab-bc92-563ad20e5491",
+        "name": "Get Portfolio Ledger",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1100,
+          320
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const regimeData = $('Get Market Regime').first().json;\nconst champData = $('Get Champion Status').first().json;\nconst signalsData = $('Refresh Daily Signals').first().json;\nconst ledgerData = $('Get Portfolio Ledger').first().json;\n\nconst isBull = regimeData.macro_regime_bull === true;\nconst regimeTitle = isBull ? \"🟢 BOĞA PİYASASI (Pozitif Rejim)\" : \"🔴 AYI PİYASASI (Defansif Rejim)\";\nconst actionDesc = regimeData.portfolio_action || (isBull ? \"Top Long Hisse Alımı\" : \"100% Nakit / PPF Repo\");\nconst championName = champData.champion_model || signalsData.champion_model || \"GRU_Ranker (10Y Haftalık Momentum)\";\n\nconst longs = signalsData.top_longs || [];\nlet signalLines = \"\";\nif (longs.length > 0) {\n  signalLines = longs.map((s, idx) => {\n    return `${idx + 1}. *${s.ticker}* | Alfa: ${s.expected_excess_return} | Pay: ${s.recommended_weight} | Stop: ${s.dynamic_stop_loss}`;\n  }).join(\"\\n\");\n} else {\n  signalLines = \"Bugün için onaylanmış hisse alım sinyali bulunmamaktadır.\";\n}\n\nconst equity = Number(ledgerData.current_portfolio_value_try || 1000000).toLocaleString('tr-TR', { maximumFractionDigits: 2 });\nconst cash = Number(ledgerData.current_cash_try || 1000000).toLocaleString('tr-TR', { maximumFractionDigits: 2 });\nconst alpha = (ledgerData.net_alpha_pct || 0).toFixed(2);\n\nconst reportText = `🏛 BIST 100 QUANT TERMINAL | SEANS BRİFİNGİ\\n` +\n  `📅 Tarih: ${signalsData.report_date || new Date().toISOString().slice(0, 10)}\\n` +\n  `🎯 Aktif Şampiyon Model: ${championName}\\n` +\n  `🌊 Makro Rejim: ${regimeTitle}\\n` +\n  `⚡ Strateji: ${actionDesc}\\n\\n` +\n  `💼 PORTFÖY:\\n` +\n  `• Özsermaye: ${equity} TL\\n` +\n  `• Nakit/Repo: ${cash} TL\\n` +\n  `• Net Alfa: %${alpha}\\n\\n` +\n  `📈 GÜNLÜK TOP LONG SİNYALLERİ:\\n` +\n  `${signalLines}`;\n\nreturn [{\n  json: {\n    is_bull: isBull,\n    report_date: signalsData.report_date,\n    champion_model: championName,\n    equity_try: equity,\n    cash_try: cash,\n    net_alpha_pct: alpha,\n    briefing_report: reportText,\n    should_execute: isBull && longs.length > 0\n  }\n}];"
+        },
+        "id": "fd903ba8-9e5b-4c5e-851f-6a9c3725b7a1",
+        "name": "Format Quant Briefing",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1320,
+          320
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "18f53a47-a892-4911-9a7f-7dc9f7c0f1e8",
+                "leftValue": "={{ $json.should_execute }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        },
+        "id": "90d95c47-3801-4475-801a-8c769d4bbff9",
+        "name": "Is Bull Regime?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1540,
+          320
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://fastapi_bist:8000/api/v1/execution/run-daily",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "bist_quant_secret_2026"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "{\"mode\": \"close_auction\", \"force_cash\": false, \"rebalance_step\": 5, \"force_execution\": false}",
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "40bca80f-eb5a-47d3-b183-b7891fa16db6",
+        "name": "Execute 17:50 Close Auction",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1760,
+          220
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{\n  json: {\n    status: \"DEFENSIVE_HOLD\",\n    message: \"Makro Kapısı AYI modunda olduğu için yeni hisse alımı yapılmadı. Portföy %100 risksiz PPF / Repo nakitte korunuyor.\",\n    report: $('Format Quant Briefing').first().json.briefing_report\n  }\n}];"
+        },
+        "id": "01c7db17-eef4-4fbf-9333-6a9b4d8120fa",
+        "name": "Hold Cash / Repo (Bear Market)",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1760,
+          420
+        ]
+      }
+    ],
+    "connections": {
+      "Manual Test Trigger": {
+        "main": [
+          [
+            {
+              "node": "Get Market Regime",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BIST Trading Hours Cron": {
+        "main": [
+          [
+            {
+              "node": "Get Market Regime",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Market Regime": {
+        "main": [
+          [
+            {
+              "node": "Get Champion Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Champion Status": {
+        "main": [
+          [
+            {
+              "node": "Refresh Daily Signals",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Refresh Daily Signals": {
+        "main": [
+          [
+            {
+              "node": "Get Portfolio Ledger",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Portfolio Ledger": {
+        "main": [
+          [
+            {
+              "node": "Format Quant Briefing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Quant Briefing": {
+        "main": [
+          [
+            {
+              "node": "Is Bull Regime?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Is Bull Regime?": {
+        "main": [
+          [
+            {
+              "node": "Execute 17:50 Close Auction",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Hold Cash / Repo (Bear Market)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }
+]

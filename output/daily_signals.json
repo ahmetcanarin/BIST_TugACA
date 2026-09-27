@@ -1,5 +1,5 @@
 {
-  "report_date": "2026-09-25",
+  "report_date": "2026-09-27",
   "champion_model": "GRU_Ranker",
   "calibrated_threshold": "%-0.10",
   "top10_avg_expected_alpha": "%0.3",

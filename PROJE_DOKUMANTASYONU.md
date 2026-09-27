@@ -167,10 +167,12 @@ LightGBM Tabular      +%18.90         -%53.60        -2.20              -%16.20
 ```
 
 #### Canlı Şampiyon Kütüğü (`models/champion_metadata.json`)
-* **Aktif Şampiyon:** `LSTM_Ranker`
+* **Aktif Şampiyon:** `GRU_Ranker (10Y Haftalık Momentum)`
 * **Model Dosyası:** `models/bist_dual_model_best.pt`
-* **Net Getiri:** `+%25.81`
-* **Maksimum Düşüş (MDD):** `-%11.07` (Tüm modeller arasındaki en düşük risk)
+* **Net Alfa:** `-%39.49` (Önceki Şampiyon LSTM_Ranker'ın -%46.75 alfasını yenerek terfi etti)
+* **Sharpe Oranı:** `-1.77` (LSTM_Ranker'ın -1.84 Sharpe oranına göre belirgin iyileşme)
+* **Terfi Tarihi:** `2026-09-23 18:51:21` (Gatekeeper Challenger Terfisi)
+* **Arşivlenen Eski Şampiyon:** `models/archive/champion_LSTM_Ranker_20260923_185121.pt`
 * **Durum:** `ACTIVE_PRODUCTION_CHAMPION`
 
 ---

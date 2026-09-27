@@ -15,6 +15,9 @@ services:
       - ./models:/app/models
       - ./output:/app/output
       - ./data:/app/data
+      - ./app:/app/app
+      - ./live_daily_runner.py:/app/live_daily_runner.py
+      - ./ensemble.py:/app/ensemble.py
     networks:
       - dlai-network
     healthcheck:
@@ -31,10 +34,10 @@ services:
     ports:
       - "5678:5678"
     environment:
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_PORT=${N8N_PORT:-5678}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
       - GENERIC_TIMEZONE=Europe/Istanbul
       - TZ=Europe/Istanbul
     volumes:
@@ -44,6 +47,16 @@ services:
     depends_on:
       fastapi_bist:
         condition: service_healthy
+
+  cloudflare_tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: dlai_bist_tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://dlai_bist_n8n:5678
+    networks:
+      - dlai-network
+    depends_on:
+      - n8n_agent
 
 networks:
   dlai-network:

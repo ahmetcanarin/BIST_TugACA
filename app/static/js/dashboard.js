@@ -519,13 +519,24 @@ function renderLedgerTable(history) {
 }
 
 // 9. Trigger Daily Execution
+let isExecutingTrade = false;
+
 async function triggerExecution(isForce = false) {
+  if (isExecutingTrade) {
+    console.warn("İcra işlemi zaten devam ediyor, mükerrer istek engellendi.");
+    return;
+  }
+  isExecutingTrade = true;
+
   const btn = isForce ? document.getElementById('btn-force-execute') : document.getElementById('btn-execute-daily');
   const defaultText = isForce ? "Mükerrer İcra Yap (Zorla)" : "17:50 Kapanış Seansı Koştur";
   
   if (isForce) {
     const confirmed = confirm("DİKKAT: Bugün için zaten bir icra kaydı yapılmış olabilir.\n\nMükerrer kayıt oluşturarak 17:50 Kapanış Seansı emir icrasını zorla koşturmak istiyor musunuz?");
-    if (!confirmed) return;
+    if (!confirmed) {
+      isExecutingTrade = false;
+      return;
+    }
   }
 
   if (btn) {
@@ -552,6 +563,7 @@ async function triggerExecution(isForce = false) {
         `[MÜKERRER İCRA ENGELİ]\n\n${data.detail || 'Bugün için icra zaten gerçekleştirildi.'}\n\nYine de mükerrer kayıt oluşturarak zorla icra yapmak istiyor musunuz?`
       );
       if (userWantsForce) {
+        isExecutingTrade = false;
         await triggerExecution(true);
       } else {
         showToast("Mükerrer icra işlemi iptal edildi.", "info");
@@ -566,6 +578,7 @@ async function triggerExecution(isForce = false) {
       btn.disabled = false;
       btn.innerText = defaultText;
     }
+    isExecutingTrade = false;
   }
 }
 

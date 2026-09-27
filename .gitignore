@@ -41,9 +41,17 @@ venv.bak/
 *.sublime-project
 *.sublime-workspace
 
-# Logs and databases
+# Environment variables & local secrets
+.env
+.env.local
+*.env
+
+# Logs and local databases
 *.log
+*.sqlite
 *.sqlite3
+*.db
+n8n/database.sqlite
 
 # OS generated files
 .DS_Store
@@ -54,6 +62,11 @@ desktop.ini
 # Scratch and Agent folders
 scratch/
 .agent/
+
+# Ad-hoc / local debug decryption scripts
+scripts/decrypt_*.js
+scripts/inspect_db.py
+scripts/run_decrypt.py
 
 # Model weight archive (historical weights)
 models/archive/
