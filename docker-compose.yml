@@ -1,0 +1,99 @@
+services:
+  # ===========================================================================
+  # 1. BIST 100 REST API Sunucusu (360° Rapor, AI Tahmin, Bilanço & n8n Bağlantısı)
+  # ===========================================================================
+  bist-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bist_api_server
+    restart: unless-stopped
+    command: python api_server.py
+    ports:
+      - "5050:5050"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=production
+    volumes:
+      - .:/app
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5050/api/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - bist_network
+
+  # ===========================================================================
+  # 2. BIST 100 Streamlit Yatırımcı Paneli
+  # ===========================================================================
+  bist-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bist_streamlit_dashboard
+    restart: unless-stopped
+    command: streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - .:/app
+    depends_on:
+      bist-api:
+        condition: service_healthy
+    networks:
+      - bist_network
+
+  # ===========================================================================
+  # 3. n8n Otomasyon & LLM Telegram Agent Motoru
+  # ===========================================================================
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: bist_n8n_automation
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - N8N_WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - GENERIC_TIMEZONE=Europe/Istanbul
+      - TZ=Europe/Istanbul
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n_workflows:/data/workflows
+    depends_on:
+      bist-api:
+        condition: service_healthy
+    networks:
+      - bist_network
+
+  # ===========================================================================
+  # 4. Cloudflare HTTPS Tüneli (Telegram Webhook İçin Ücretsiz & Otomatik HTTPS)
+  # ===========================================================================
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: bist_tunnel
+    restart: unless-stopped
+    command: tunnel --url http://bist_n8n_automation:5678
+    depends_on:
+      - n8n
+    networks:
+      - bist_network
+
+# =============================================================================
+# Ağ & Kalıcı Depolama Alanları
+# =============================================================================
+networks:
+  bist_network:
+    driver: bridge
+
+volumes:
+  n8n_data:
+    driver: local

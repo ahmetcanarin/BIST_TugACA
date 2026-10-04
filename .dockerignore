@@ -1,0 +1,54 @@
+# =============================================================================
+# 1. Güvenlik ve Ortam Değişkenleri (İmaja gömülmemelidir)
+# =============================================================================
+.env
+.env.*
+.env.local
+
+# =============================================================================
+# 2. Git ve Docker Yapılandırma Kalıntıları
+# =============================================================================
+.git
+.gitignore
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+
+# =============================================================================
+# 3. Python Bytecode, Önbellek ve Sanal Ortamlar
+# =============================================================================
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.cache
+.pytest_cache/
+.coverage
+.coverage.*
+
+# =============================================================================
+# 4. Host Makineye Özel Scriptler ve Ayrık Servisler
+# =============================================================================
+sync_tunnel.py
+n8n_workflows/
+
+# =============================================================================
+# 5. Dokümantasyon, Loglar ve Editör Dosyaları
+# =============================================================================
+data_description.txt
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.vscode/
+.idea/
+*.sublime-workspace
+.DS_Store
+Thumbs.db

@@ -1,0 +1,64 @@
+# =============================================================================
+# Ortam Değişkenleri ve Gizli Bilgiler
+# =============================================================================
+.env
+.env.local
+.env.*.local
+
+# =============================================================================
+# Python Bytecode ve Derleme Kalıntıları
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# =============================================================================
+# Sanal Ortamlar (Virtual Environments)
+# =============================================================================
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# =============================================================================
+# Loglar ve Geçici Test / Kapsama Dosyaları
+# =============================================================================
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+
+# =============================================================================
+# Editör ve İşletim Sistemi Kalıntıları
+# =============================================================================
+.vscode/
+.idea/
+*.sublime-workspace
+.DS_Store
+Thumbs.db
