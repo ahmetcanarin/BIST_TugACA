@@ -7,11 +7,11 @@
 [![n8n Agent](https://img.shields.io/badge/Agent-n8n%20%2B%20Gemini-FF6584.svg?logo=n8n&logoColor=white)](https://n8n.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **"Piyasalarda alfa arayışı, yalnızca fiyat hareketlerini tahmin etmekle sınırlı değildir; makroekonomik rejimleri, bilanço dinamiklerini, piyasa likiditesini ve kamusal bilgi akışını eşzamanlı olarak modelleyebilme sanatıdır."**
+> **"Piyasalarda alfa arayışı, yalnızca fiyat hareketlerini tahmin etmekle sınırlı değildir; makroekonomik rejimleri, bilanço dinamiklerini, piyasa likiditesini ve kamusal bilgi akışını eş zamanlı olarak modelleyebilme sanatıdır."**
 
 ---
 
-## 📌 Özet (Executive Summary)
+## 📌 Özet (Summary)
 
 **BIST 360°**, Borsa İstanbul (BIST 100) pay piyasaları için kurumsal varlık yönetim standartlarında geliştirilmiş; **çok görevli (Multi-Task) derin öğrenme modellerini**, **volatilite rejim sınıflandırmasını**, **Türkçe NLP duygu madenciliğini**, **temel analiz rasyolarını** ve **kurumsal takas/para akışı metriklerini** tek bir potada eriten hibrit bir kantitatif karar destek ekosistemidir.
 
