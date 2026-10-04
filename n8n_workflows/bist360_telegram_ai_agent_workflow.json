@@ -1,11 +1,5 @@
 {
-  "updatedAt": "2026-10-03T15:27:06.674Z",
-  "createdAt": "2026-10-03T04:07:20.809Z",
-  "id": "82zJyPo1oqp1ep7o",
   "name": "BIST 360 Telegram LLM Agent & Karar Destek",
-  "description": null,
-  "active": true,
-  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -50,7 +44,6 @@
     {
       "parameters": {
         "toolDescription": "Borsa İstanbul (BIST) hissesi için yapay zeka Dual GRU tahminlerini, beklenen alfa oranını, volatilite rejimini, bilanço nakit/borç rasyolarını, özkaynak gücünü ve para akışı/takas skorunu getirir. Parametre olarak hisse sembolü (örn: THYAO, EREGL, ASELS) alır.",
-        "method": "GET",
         "url": "http://bist-api:5050/api/report?ticker={ticker}",
         "placeholderDefinitions": {
           "values": [
@@ -67,8 +60,8 @@
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
       "position": [
-        -8,
-        520
+        -16,
+        528
       ]
     },
     {
@@ -108,8 +101,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1,
       "position": [
-        -264,
-        520
+        -272,
+        528
       ],
       "credentials": {
         "googlePalmApi": {
@@ -127,14 +120,15 @@
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.4,
       "position": [
-        -136,
-        520
+        -144,
+        528
       ],
       "id": "65cfb4f6-4f27-44a7-ae4c-456a248d9e79",
       "name": "Simple Memory",
       "alwaysOutputData": true
     }
   ],
+  "pinData": {},
   "connections": {
     "Telegram Trigger": {
       "main": [
@@ -192,44 +186,17 @@
       ]
     }
   },
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "staticData": null,
+  "versionId": "7fb00218-2aeb-460d-b31f-80efec0f1466",
   "meta": {
-    "templateCredsSetupCompleted": true
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d3012ca2a7c8e2e6de7b87227f2219ac18e6614193193b1e6550baa4086a296"
   },
   "nodeGroups": [],
-  "pinData": {},
-  "versionId": "85e413bf-07ec-42e2-82b7-938a0315a44e",
-  "activeVersionId": "85e413bf-07ec-42e2-82b7-938a0315a44e",
-  "versionCounter": 177,
-  "triggerCount": 1,
-  "sourceWorkflowId": null,
-  "tags": [],
-  "shared": [
-    {
-      "updatedAt": "2026-10-03T04:07:20.814Z",
-      "createdAt": "2026-10-03T04:07:20.814Z",
-      "role": "workflow:owner",
-      "workflowId": "82zJyPo1oqp1ep7o",
-      "projectId": "zWS3ldfYJbJ7e6rJ",
-      "project": {
-        "updatedAt": "2026-10-03T04:00:24.812Z",
-        "createdAt": "2026-10-03T03:59:00.742Z",
-        "id": "zWS3ldfYJbJ7e6rJ",
-        "name": "Ahmet Can Arin <ahmetcanarin@gmail.com>",
-        "type": "personal",
-        "icon": null,
-        "description": null,
-        "customTelemetryTags": [],
-        "creatorId": "c7dfd774-b4af-45cb-b69c-9d5c6f56f81b"
-      }
-    }
-  ],
-  "versionMetadata": {
-    "name": "Version 85e413bf",
-    "description": ""
-  }
+  "id": "82zJyPo1oqp1ep7o",
+  "tags": []
 }
