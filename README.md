@@ -11,7 +11,7 @@
 
 ---
 
-## 📌 Yönetici Özeti (Executive Summary)
+## 📌 Özet (Executive Summary)
 
 **BIST 360°**, Borsa İstanbul (BIST 100) pay piyasaları için kurumsal varlık yönetim standartlarında geliştirilmiş; **çok görevli (Multi-Task) derin öğrenme modellerini**, **volatilite rejim sınıflandırmasını**, **Türkçe NLP duygu madenciliğini**, **temel analiz rasyolarını** ve **kurumsal takas/para akışı metriklerini** tek bir potada eriten hibrit bir kantitatif karar destek ekosistemidir.
 
@@ -185,10 +185,3 @@ python sync_tunnel.py
 > **YATIRIM TAVSİYESİ DEĞİLDİR.**
 > Bu projede sunulan derin öğrenme modelleri, istatistiksel hesaplamalar, olasılık tahminleri ve analitik çıktılar yalnızca akademik araştırma, kantitatif analiz ve deneysel karar destek amaçlıdır. Sermaye Piyasası Kurulu (SPK) mevzuatı kapsamında herhangi bir yatırım tavsiyesi, portföy yöneticiliği veya alım-satım taahhüdü teşkil etmez. Gerçek piyasa koşullarında yapılacak işlemlerden doğabilecek maddi/manevi zararlardan geliştiriciler sorumlu tutulamaz.
 
----
-
-## 👤 Geliştirici & İletişim
-
-**Ahmet Can Arin**  
-* GitHub: [@ahmetcanarin](https://github.com/ahmetcanarin)  
-* Repository: [BIST_TugACA](https://github.com/ahmetcanarin/BIST_TugACA)
