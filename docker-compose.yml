@@ -65,6 +65,7 @@ services:
       - GENERIC_TIMEZONE=Europe/Istanbul
       - TZ=Europe/Istanbul
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_PROXY_HOPS=1
     volumes:
       - n8n_data:/home/node/.n8n
       - ./n8n_workflows:/data/workflows
@@ -75,13 +76,18 @@ services:
       - bist_network
 
   # ===========================================================================
-  # 4. Cloudflare HTTPS Tüneli (Telegram Webhook İçin Ücretsiz & Otomatik HTTPS)
+  # 4. Ngrok Sabit HTTPS Tüneli (Kalıcı Statik Domain ile Telegram Webhook)
   # ===========================================================================
   tunnel:
-    image: cloudflare/cloudflared:latest
+    image: ngrok/ngrok:latest
     container_name: bist_tunnel
     restart: unless-stopped
-    command: tunnel --url http://bist_n8n_automation:5678
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command:
+      - http
+      - --url=${NGROK_DOMAIN}
+      - http://bist_n8n_automation:5678
     depends_on:
       - n8n
     networks:
