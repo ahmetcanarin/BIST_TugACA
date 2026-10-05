@@ -50,7 +50,7 @@ flowchart TD
     subgraph Serving_Layer["4. Mikroservis Dağıtım & Ajan Katmanı"]
         D1["Flask REST API Server (Port 5050)"]
         D2["Streamlit Yatırımcı Terminali (Port 8501)"]
-        D3["Cloudflare HTTPS Tüneli"]
+        D3["Ngrok Sabit HTTPS Tüneli"]
         D4["n8n LLM Agent (Gemini 3.8 Flash + Function Calling)"]
         D5["Telegram Bot Etkileşimi"]
     end
@@ -99,7 +99,6 @@ $$\mathcal{L}_{\text{Focal}} = -\alpha_t (1 - p_t)^\gamma \log(p_t) \quad (\gamm
 | [`investor_360.py`](investor_360.py) | 5 ana motorun çıktılarını tek bir 360° yatırımcı raporuna ve Conviction Score'a sentezleyen motor. |
 | [`api_server.py`](api_server.py) | Model ve analitik çıktılarını JSON formatında sunan yüksek performanslı Flask REST API. |
 | [`streamlit_app.py`](streamlit_app.py) | Kurumsal düzeyde interaktif mum grafikleri, volatilite radarı ve hisse analiz terminali. |
-| [`sync_tunnel.py`](sync_tunnel.py) | Cloudflare Quick Tunnel ile n8n Telegram webhook adresini otomatik senkronize eden DevOps aracı. |
 
 ---
 
@@ -143,12 +142,10 @@ Bu komut 4 mikroservisi ayağa kaldıracaktır:
 * **BIST REST API:** `http://localhost:5050`
 * **Streamlit Terminali:** `http://localhost:8501`
 * **n8n Otomasyon Paneli:** `http://localhost:5678`
-* **Cloudflare HTTPS Tüneli:** Telegram Webhook için anında SSL uç noktası sağlar.
+* **Ngrok Sabit HTTPS Tüneli:** Telegram Webhook için kalıcı ve sabit bir SSL uç noktası sağlar.
 
-### 4. Cloudflare Tünelini n8n ile Eşitleyin
-```bash
-python sync_tunnel.py
-```
+### 4. Telegram Botunuzu Kullanın
+Docker konteynerleri başlatıldığında Ngrok statik tüneli ve n8n otomatik olarak Telegram botunuza bağlanır. Kalıcı statik domain sayesinde herhangi bir ek senkronizasyon scripti çalıştırmanıza gerek yoktur. Telegram botunuza giderek doğrudan analiz isteyebilirsiniz.
 
 ---
 
